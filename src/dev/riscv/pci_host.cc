@@ -48,11 +48,11 @@ GenericRiscvPciHost::GenericRiscvPciHost(const GenericRiscvPciHostParams &p)
 
 uint32_t
 GenericRiscvPciHost::mapPciInterrupt(
-    const PciBusAddr &addr, PciIntPin pin) const
+    const PciDevAddr &addr, PciIntPin pin) const
 {
     fatal_if(pin == PciIntPin::NO_INT,
              "%02x:%02x.%i: Interrupt from a device without interrupts\n",
-             addr.bus, addr.dev, addr.func);
+             getBusNum(), addr.dev, addr.func);
 
     return intBase + (addr.dev % intCount);
 }

@@ -33,18 +33,20 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.objects.Device import PioDevice
+from m5.objects.PciHostBridge import PciHostBridge
+from m5.objects.PciUpstream import PciUpstream
 from m5.objects.Platform import Platform
 from m5.params import *
 from m5.proxy import *
-from m5.SimObject import SimObject
 
 
-class PciHost(PioDevice):
+class PciHost(PciUpstream):
     type = "PciHost"
     cxx_class = "gem5::PciHost"
     cxx_header = "dev/pci/host.hh"
     abstract = True
+
+    bridge = Param.PciHostBridge(PciHostBridge(), "PCI host bridge")
 
 
 class GenericPciHost(PciHost):

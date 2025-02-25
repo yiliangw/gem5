@@ -65,7 +65,7 @@ class BaseViperGPU(SubSystem):
         self._my_id = self.get_gpu_count()
         pci_dev = self.next_pci_dev()
 
-        self.device = AMDGPUDevice(pci_func=0, pci_dev=pci_dev, pci_bus=0)
+        self.device = AMDGPUDevice(pci_func=0, pci_dev=pci_dev)
 
     def set_shader(self, shader: ViperShader):
         self.shader = shader
@@ -80,7 +80,7 @@ class BaseViperGPU(SubSystem):
         self.shader.set_cpu_pointer(cpus.cores[0].core)
 
         # Connect all PIO buses
-        self.shader.connect_iobus(board.get_io_bus())
+        self.shader.connect_iobus(board.get_io_bus(), board.get_pci_bus())
 
         # Make the cache hierarchy. This will create an independent RubySystem
         # class containing only the GPU caches with no network connection to
@@ -109,7 +109,7 @@ class BaseViperGPU(SubSystem):
         # pointer required by the AbstractMemory class is set by AMDGPUDevice.
         self.device.memories = self._memory.get_mem_interfaces()
 
-        self.device.host = board.get_pci_host()
+        self.device.upstream = board.get_pci_host()
 
 
 # A scaled down MI210-like device. Defaults to ~1/4th of an MI210.

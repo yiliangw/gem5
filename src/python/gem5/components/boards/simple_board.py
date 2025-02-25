@@ -29,6 +29,7 @@ from typing import List
 from m5.objects import (
     AddrRange,
     IOXBar,
+    PciXBar,
     Port,
 )
 
@@ -78,6 +79,17 @@ class SimpleBoard(AbstractSystemBoard, SEBinaryWorkload):
         raise NotImplementedError(
             "SimpleBoard does not have an IO Bus. "
             "Use `has_io_bus()` to check this."
+        )
+
+    @overrides(AbstractSystemBoard)
+    def has_pci_bus(self) -> bool:
+        return False
+
+    @overrides(AbstractSystemBoard)
+    def get_pci_bus(self) -> PciXBar:
+        raise NotImplementedError(
+            "SimpleBoard does not have an PCI Bus. "
+            "Use `has_pci_bus()` to check this."
         )
 
     @overrides(AbstractSystemBoard)

@@ -46,6 +46,7 @@ from m5.objects import (
     GenericTimer,
     IOXBar,
     PciVirtIO,
+    PciXBar,
     Port,
     RawDiskImage,
     SimObject,
@@ -294,6 +295,14 @@ class ArmBoard(ArmSystem, AbstractBoard, KernelDiskWorkload):
         return self.iobus
 
     @overrides(AbstractBoard)
+    def has_pci_bus(self) -> bool:
+        return True
+
+    @overrides(AbstractBoard)
+    def get_pci_bus(self) -> PciXBar:
+        return self.realview.pci_bus
+
+    @overrides(AbstractBoard)
     def has_coherent_io(self) -> bool:
         # The setup of the caches gets a little tricky here. We need to
         # override the default cache_hierarchy.iobridge due to different delay
@@ -373,9 +382,7 @@ class ArmBoard(ArmSystem, AbstractBoard, KernelDiskWorkload):
 
         # For every PCI device, we need to get its dma_port so that we
         # can setup dma_controllers correctly.
-        self.realview.attachPciDevice(
-            pci_device, self.iobus, dma_ports=self.get_dma_ports()
-        )
+        self.realview.attachPciDevice(pci_device)
 
     @overrides(KernelDiskWorkload)
     def get_disk_device(self):

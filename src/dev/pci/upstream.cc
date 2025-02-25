@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited
+ * Copyright (c) 2025 REDS institute of the HEIG-VD
  * All rights reserved
  *
  * The license below extends only to copyright in the software and shall
@@ -35,79 +35,84 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "dev/pci/host.hh"
+#include "dev/pci/upstream.hh"
 
-#include "base/addr_range.hh"
-#include "debug/PciHost.hh"
+#include "debug/PciUpstream.hh"
 #include "dev/pci/device.hh"
 #include "dev/pci/types.hh"
-#include "dev/pci/upstream.hh"
-#include "dev/platform.hh"
-#include "params/GenericPciHost.hh"
-#include "params/PciHost.hh"
+#include "sim/sim_object.hh"
 
 namespace gem5
 {
 
-PciHost::PciHost(const PciHostParams &p)
-    : PciUpstream(p), bridge(p.bridge)
+PciUpstream::PciUpstream(const PciUpstreamParams &p) : SimObject(p) {}
+
+PciUpstream::~PciUpstream() {}
+
+PciUpstream::DeviceInterface
+PciUpstream::registerDevice(PciDevice *device, PciDevAddr dev_addr,
+                            PciIntPin pin)
 {
-    bridge->setHost(this);
+    auto map_entry = devices.emplace(dev_addr, device);
+
+    DPRINTF(PciUpstream, "%02x:%02x.%i: Registering device\n", getBusNum(),
+            dev_addr.dev, dev_addr.func);
+
+    fatal_if(!map_entry.second, "%02x:%02x.%i: PCI bus ID collision\n",
+             getBusNum(), dev_addr.dev, dev_addr.func);
+
+    return DeviceInterface(*this, dev_addr, pin);
 }
 
-PciHost::~PciHost()
+PciDevice *
+PciUpstream::getDevice(const PciDevAddr &addr)
 {
+    auto device = devices.find(addr);
+    return device != devices.end() ? device->second : nullptr;
 }
 
-GenericPciHost::GenericPciHost(const GenericPciHostParams &p)
-    : PciHost(p),
-      platform(*p.platform),
-      confBase(p.conf_base), confSize(p.conf_size),
-      confDeviceBits(p.conf_device_bits),
-      pciPioBase(p.pci_pio_base), pciMemBase(p.pci_mem_base),
-      pciDmaBase(p.pci_dma_base)
+const PciDevice *
+PciUpstream::getDevice(const PciDevAddr &addr) const
 {
+    auto device = devices.find(addr);
+    return device != devices.end() ? device->second : nullptr;
 }
 
-GenericPciHost::~GenericPciHost()
+PciUpstream::DeviceInterface::DeviceInterface(PciUpstream &upstream,
+                                              const PciDevAddr &dev_addr,
+                                              PciIntPin pin)
+    : upstream(upstream), devAddr(dev_addr), interruptPin(pin)
+{}
+
+const std::string
+PciUpstream::DeviceInterface::name() const
 {
-}
-
-AddrRange
-GenericPciHost::getConfigAddrRange() const
-{
-    return RangeSize(confBase, confSize);
-}
-
-AddrRange
-GenericPciHost::interfaceConfigRange(const PciDevAddr &dev_addr) const
-{
-    Addr bus_addr = (getBusNum() << 8) + (dev_addr.dev << 3) + dev_addr.func;
-
-    Addr start = confBase + (bus_addr << confDeviceBits);
-
-    return RangeSize(start, 1 << confDeviceBits);
+    return csprintf("%s.interface[%02x:%02x.%i]", upstream.name(),
+                    upstream.getBusNum(), devAddr.dev, devAddr.func);
 }
 
 void
-GenericPciHost::interfacePostInt(const PciDevAddr &addr, PciIntPin pin)
+PciUpstream::DeviceInterface::postInt()
 {
-    platform.postPciInt(mapPciInterrupt(addr, pin));
+    DPRINTF(PciUpstream, "postInt\n");
+
+    upstream.interfacePostInt(devAddr, interruptPin);
 }
 
 void
-GenericPciHost::interfaceClearInt(const PciDevAddr &addr, PciIntPin pin)
+PciUpstream::DeviceInterface::clearInt()
 {
-    platform.clearPciInt(mapPciInterrupt(addr, pin));
+    DPRINTF(PciUpstream, "clearInt\n");
+
+    upstream.interfaceClearInt(devAddr, interruptPin);
 }
 
-uint32_t
-GenericPciHost::mapPciInterrupt(const PciDevAddr &addr, PciIntPin pin) const
+void
+PciUpstream::sendBusChange()
 {
-    const PciDevice *dev(getDevice(addr));
-    assert(dev);
-
-    return dev->interruptLine();
+    for (std::pair<PciDevAddr, PciDevice *> device : devices) {
+        device.second->recvBusChange();
+    }
 }
 
 } // namespace gem5

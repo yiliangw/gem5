@@ -1,7 +1,6 @@
-# -*- mode:python -*-
-
-# Copyright (c) 2015 ARM Limited
-# All rights reserved.
+# Copyright (c) 2025 REDS institute of the HEIG-VD
+#  All rights reserved
+#
 #
 # The license below extends only to copyright in the software and shall
 # not be construed as granting a license to any other intellectual
@@ -11,9 +10,6 @@
 # terms below provided that you ensure that this notice is replicated
 # unmodified and in its entirety in all distributions of the software,
 # modified or unmodified, in source code or in binary form.
-#
-# Copyright (c) 2006 The Regents of The University of Michigan
-# All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -38,28 +34,24 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-Import('*')
+from m5.objects.ClockedObject import ClockedObject
+from m5.params import *
+from m5.proxy import *
 
-SimObject('PciDevice.py', sim_objects=[
-    'PciBar', 'PciBarNone', 'PciIoBar', 'PciLegacyIoBar', 'PciMemBar',
-    'PciMemUpperBar', 'PciDevice', 'PciEndpoint', 'PciBridge'])
-Source('device.cc')
-DebugFlag('PciDevice')
-DebugFlag('PciEndpoint')
-DebugFlag('PciBridge')
 
-SimObject('PciUpstream.py', sim_objects=['PciUpstream'])
-Source('upstream.cc')
-DebugFlag('PciUpstream')
+class PciHostBridge(ClockedObject):
+    type = "PciHostBridge"
+    cxx_class = "gem5::PciHostBridge"
+    cxx_header = "dev/pci/host_bridge.hh"
 
-SimObject('PciHostBridge.py', sim_objects=['PciHostBridge'])
-Source('host_bridge.cc')
-DebugFlag('PciHostBridge')
+    # Bridge mem -> pci
+    mem_response_port = ResponsePort("Response port on memory side")
+    pci_request_port = RequestPort("Request port on PCI side")
 
-SimObject('PciHost.py', sim_objects=['PciHost', 'GenericPciHost'])
-Source('host.cc')
-DebugFlag('PciHost')
+    # Bridge pci -> mem
+    pci_response_port = ResponsePort("Response port on PCI side")
+    mem_request_port = RequestPort("Request port on memory side")
 
-SimObject('CopyEngine.py', sim_objects=['CopyEngine'])
-Source('copy_engine.cc')
-DebugFlag('DMACopyEngine')
+    req_size = Param.Unsigned(16, "The number of requests to buffer")
+    resp_size = Param.Unsigned(16, "The number of responses to buffer")
+    delay = Param.Latency("0ns", "The latency of this bridge")

@@ -43,6 +43,7 @@ from m5.objects.PMAChecker import PMAChecker
 from m5.objects.RTC import RiscvRTC
 from m5.objects.Terminal import Terminal
 from m5.objects.Uart import RiscvUart8250
+from m5.objects.XBar import PciXBar
 from m5.params import *
 from m5.proxy import *
 from m5.util.fdthelper import *
@@ -188,6 +189,7 @@ class HiFive(HiFiveBase):
         pci_pio_base=0x2F000000,
         pci_mem_base=0x40000000,
     )
+    pci_bus = PciXBar()
 
     # Uart
     uart = RiscvUart8250(pio_addr=0x10000000)

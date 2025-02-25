@@ -222,3 +222,9 @@ class IOXBar(NoncoherentXBar):
     frontend_latency = 2
     forward_latency = 1
     response_latency = 2
+
+
+# Simple PCI crossbar which only alias IOXBar for now. A more
+# specific implementation should be declare at some point.
+class PciXBar(IOXBar):
+    pass
