@@ -52,13 +52,14 @@
 #include "base/types.hh"
 #include "base/statistics.hh"
 #include "mem/port.hh"
-#include "params/CXLBridge.hh"
+#include "params/CxlBridge.hh"
 #include "sim/clocked_object.hh"
+#include "sim/sim_object.hh"
 
 namespace gem5
 {
 
-class CXLBridge : public ClockedObject
+class CxlBridge : public ClockedObject
 {
   protected:
 
@@ -93,7 +94,7 @@ class CXLBridge : public ClockedObject
       private:
 
         /** The bridge to which this port belongs. */
-        CXLBridge& bridge;
+        CxlBridge& bridge;
 
         /**
          * Request port on the other side of the bridge.
@@ -163,7 +164,7 @@ class CXLBridge : public ClockedObject
          * @param _resp_limit the size of the response queue
          * @param _ranges a number of address ranges to forward
          */
-        BridgeResponsePort(const std::string& _name, CXLBridge& _bridge,
+        BridgeResponsePort(const std::string& _name, CxlBridge& _bridge,
                         BridgeRequestPort& _memSidePort, Cycles _bridge_lat, Cycles _proto_proc_lat,
                         int _resp_limit, std::vector<AddrRange> _ranges);
 
@@ -232,7 +233,7 @@ class CXLBridge : public ClockedObject
       private:
 
         /** The bridge to which this port belongs. */
-        CXLBridge& bridge;
+        CxlBridge& bridge;
 
         /**
          * The response port on the other side of the bridge.
@@ -279,7 +280,7 @@ class CXLBridge : public ClockedObject
          * @param _proto_proc_lat the conversion delay of cxl protocol in bridge
          * @param _req_limit the size of the request queue
          */
-        BridgeRequestPort(const std::string& _name, CXLBridge& _bridge,
+        BridgeRequestPort(const std::string& _name, CxlBridge& _bridge,
                          BridgeResponsePort& _cpuSidePort, Cycles _bridge_lat,
                          Cycles _proto_proc_lat, int _req_limit);
 
@@ -326,9 +327,9 @@ class CXLBridge : public ClockedObject
     /** Request port of the bridge. */
     BridgeRequestPort memSidePort;
 
-    struct CXLBridgeStats : public statistics::Group
+    struct CxlBridgeStats : public statistics::Group
     {
-        CXLBridgeStats(CXLBridge &bridge);
+        CxlBridgeStats(CxlBridge &bridge);
 
         statistics::Scalar reqQueFullEvents;
         statistics::Scalar reqRetryCounts;
@@ -344,7 +345,7 @@ class CXLBridge : public ClockedObject
         statistics::Distribution rspQueueLatDist;
     };
 
-    CXLBridgeStats stats;
+    CxlBridgeStats stats;
 
   public:
 
@@ -353,9 +354,8 @@ class CXLBridge : public ClockedObject
 
     void init() override;
 
-    typedef CXLBridgeParams Params;
-
-    CXLBridge(const Params &p);
+    PARAMS(CxlBridge);
+    CxlBridge(const Params &p);
 };
 
 } // namespace gem5

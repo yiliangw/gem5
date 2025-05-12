@@ -11,14 +11,14 @@
 #include "mem/packet.hh"
 #include "mem/packet_access.hh"
 #include "mem/port.hh"
-#include "params/CXLMemory.hh"
+#include "params/CxlMemory.hh"
 #include "sim/clocked_object.hh"
 
 
 namespace gem5
 {
 
-class CXLMemory : public PciDevice 
+class CxlMemory : public PciDevice
 {
     protected:
 
@@ -40,35 +40,35 @@ class CXLMemory : public PciDevice
         };
 
         // Forward declaration to allow the response port to have a pointer
-        class CXLRequestPort;
+        class CxlRequestPort;
 
         /**
         * The port on the side that receives requests and sends
         * responses. The response port also has a buffer for the
         * responses not yet sent.
         */
-        class CXLResponsePort : public ResponsePort
+        class CxlResponsePort : public ResponsePort
         {
             private:
 
-                /** The CXLMemory to which this port belongs. */
-                CXLMemory& cxlMemory;
+                /** The CxlMemory to which this port belongs. */
+                CxlMemory& cxlMemory;
 
                 /**
-                * Request port on which CXLMemory sends requests to the back-end memory media.
+                * Request port on which CxlMemory sends requests to the back-end memory media.
                 */
-                CXLRequestPort& memReqPort;
+                CxlRequestPort& memReqPort;
 
-                /** Latency in protocol processing by CXLMemory. */
+                /** Latency in protocol processing by CxlMemory. */
                 const Cycles protoProcLat;
 
-                /** Address ranges to pass through the CXLMemory */
+                /** Address ranges to pass through the CxlMemory */
                 const AddrRange cxlMemRange;
 
                 /**
                 * Response packet queue. Response packets are held in this
                 * queue for a specified delay to model the processing delay
-                * of the CXLMemory.
+                * of the CxlMemory.
                 */
                 std::deque<DeferredPacket> transmitList;
 
@@ -106,17 +106,17 @@ class CXLMemory : public PciDevice
 
             public:
                 /**
-                * Constructor for the CXLResponsePort.
+                * Constructor for the CxlResponsePort.
                 *
                 * @param _name the port name including the owner
                 * @param _cxlMemory the structural owner
-                * @param _memReqPort the request port of CXLMemory
+                * @param _memReqPort the request port of CxlMemory
                 * @param _protoProcLat the delay in cycles from receiving to sending
                 * @param _resp_limit the size of the response queue
-                * @param _cxlMemRange the address range of the CXLMemory
+                * @param _cxlMemRange the address range of the CxlMemory
                 */
-                CXLResponsePort(const std::string& _name, CXLMemory& _cxlMemory,
-                                CXLRequestPort& _memReqPort, Cycles _protoProcLat,
+                CxlResponsePort(const std::string& _name, CxlMemory& _cxlMemory,
+                                CxlRequestPort& _memReqPort, Cycles _protoProcLat,
                                 int _resp_limit, AddrRange _cxlMemRange);
 
                 /**
@@ -169,24 +169,24 @@ class CXLMemory : public PciDevice
         * responses from back-end memory media. The request port 
         * has a buffer for the requests not yet sent.
         */
-        class CXLRequestPort : public RequestPort
+        class CxlRequestPort : public RequestPort
         {
             private:
-                /** The CXLMemory to which this port belongs. */
-                CXLMemory& cxlMemory;
+                /** The CxlMemory to which this port belongs. */
+                CxlMemory& cxlMemory;
 
                 /**
-                * The response port on the other side of the CXLMemory.
+                * The response port on the other side of the CxlMemory.
                 */
-                CXLResponsePort& cxlRspPort;
+                CxlResponsePort& cxlRspPort;
 
-                /** Latency in protocol processing by CXLMemory. */
+                /** Latency in protocol processing by CxlMemory. */
                 const Cycles protoProcLat;
 
                 /**
                 * Request packet queue. Request packets are held in this
                 * queue for a specified delay to model the processing delay
-                * of the CXLMemory.
+                * of the CxlMemory.
                 */
                 std::deque<DeferredPacket> transmitList;
 
@@ -205,16 +205,16 @@ class CXLMemory : public PciDevice
 
             public:
                 /**
-                * Constructor for the CXLRequestPort.
+                * Constructor for the CxlRequestPort.
                 *
                 * @param _name the port name including the owner
                 * @param _cxlMemory the structural owner
-                * @param _cxlRspPort the response port of CXLMemory
+                * @param _cxlRspPort the response port of CxlMemory
                 * @param _protoProcLat the delay in cycles from receiving to sending
                 * @param _req_limit the size of the request queue
                 */
-                CXLRequestPort(const std::string& _name, CXLMemory& _cxlMemory,
-                                CXLResponsePort& _cxlRspPort, Cycles _protoProcLat,
+                CxlRequestPort(const std::string& _name, CxlMemory& _cxlMemory,
+                                CxlResponsePort& _cxlRspPort, Cycles _protoProcLat,
                                 int _req_limit);
 
                 /**
@@ -243,17 +243,17 @@ class CXLMemory : public PciDevice
                 void recvReqRetry() override;
         };
 
-        /** Response port of the CXLMemory. */
-        CXLResponsePort cxlRspPort;
+        /** Response port of the CxlMemory. */
+        CxlResponsePort cxlRspPort;
 
-        /** Request port of the CXLMemory. */
-        CXLRequestPort memReqPort;
+        /** Request port of the CxlMemory. */
+        CxlRequestPort memReqPort;
 
         Tick preRspTick = -1;
 
         struct CXLCtrlStats : public statistics::Group
         {
-            CXLCtrlStats(CXLMemory &cxlMemory);
+            CXLCtrlStats(CxlMemory &cxlMemory);
     
             statistics::Scalar reqQueFullEvents;
             statistics::Scalar reqRetryCounts;
@@ -286,8 +286,8 @@ class CXLMemory : public PciDevice
 
         AddrRangeList getAddrRanges() const override;
 
-        PARAMS(CXLMemory);
-        CXLMemory(const Params &p);
+        PARAMS(CxlMemory);
+        CxlMemory(const Params &p);
 };
 
 } // namespace gem5

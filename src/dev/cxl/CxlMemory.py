@@ -3,9 +3,9 @@ from m5.objects.PciDevice import *
 
 
 class CxlMemory(PciDevice):
-    type = 'CXLMemory'
-    cxx_header = "dev/storage/cxl_memory.hh"
-    cxx_class = 'gem5::CXLMemory'
+    type = 'CxlMemory'
+    cxx_header = "dev/cxl/memory.hh"
+    cxx_class = 'gem5::CxlMemory'
 
     cxl_rsp_port = ResponsePort(
         "This port sends responses to and receives requests from the Host"
@@ -16,9 +16,11 @@ class CxlMemory(PciDevice):
 
     rsp_size = Param.Unsigned(48, "The number of responses to buffer")
     req_size = Param.Unsigned(48, "The number of requests to buffer")
-    
-    proto_proc_lat = Param.Latency("15ns", "Latency of the CXL controller processing CXL.mem sub-protocol packets")
-    cxl_mem_range = Param.AddrRange("2GB", "CXL expander memory range that can be identified as system memory")
+
+    proto_proc_lat = Param.Latency(
+        "15ns", "Latency of the CXL controller processing CXL.mem sub-protocol packets")
+    cxl_mem_range = Param.AddrRange(
+        "2GB", "CXL expander memory range that can be identified as system memory")
 
     VendorID = 0x8086
     DeviceID = 0X7890
