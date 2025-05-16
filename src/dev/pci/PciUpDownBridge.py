@@ -39,18 +39,18 @@ from m5.params import *
 from m5.proxy import *
 
 
-class PciHostBridge(ClockedObject):
-    type = "PciHostBridge"
-    cxx_class = "gem5::PciHostBridge"
-    cxx_header = "dev/pci/host_bridge.hh"
+class PciUpDownBridge(ClockedObject):
+    type = "PciUpDownBridge"
+    cxx_class = "gem5::PciUpDownBridge"
+    cxx_header = "dev/pci/up_down_bridge.hh"
 
-    # Bridge mem -> pci
-    mem_response_port = ResponsePort("Response port on memory side")
-    pci_request_port = RequestPort("Request port on PCI side")
+    # Bridge Upstream -> Downstream
+    up_response_port = ResponsePort("Response port on upstream side")
+    down_request_port = RequestPort("Request port on downstream side")
 
-    # Bridge pci -> mem
-    pci_response_port = ResponsePort("Response port on PCI side")
-    mem_request_port = RequestPort("Request port on memory side")
+    # Bridge Downstream -> Upstream
+    down_response_port = ResponsePort("Response port on upstream side")
+    up_request_port = RequestPort("Request port on downstream side")
 
     req_size = Param.Unsigned(16, "The number of requests to buffer")
     resp_size = Param.Unsigned(16, "The number of responses to buffer")

@@ -1,7 +1,5 @@
-# -*- mode:python -*-
-
-# Copyright (c) 2015 ARM Limited
-# All rights reserved.
+# Copyright (c) 2025 REDS institute of the HEIG-VD
+#  All rights reserved
 #
 # The license below extends only to copyright in the software and shall
 # not be construed as granting a license to any other intellectual
@@ -11,9 +9,6 @@
 # terms below provided that you ensure that this notice is replicated
 # unmodified and in its entirety in all distributions of the software,
 # modified or unmodified, in source code or in binary form.
-#
-# Copyright (c) 2006 The Regents of The University of Michigan
-# All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -38,35 +33,24 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-Import('*')
+from m5.objects.ClockedObject import ClockedObject
+from m5.objects.PciDevice import PciBridge
+from m5.objects.PciUpDownBridge import PciUpDownBridge
+from m5.objects.PciUpstream import PciUpstream
+from m5.params import *
+from m5.proxy import *
 
-SimObject('PciDevice.py', sim_objects=[
-    'PciBar', 'PciBarNone', 'PciIoBar', 'PciLegacyIoBar', 'PciMemBar',
-    'PciMemUpperBar', 'PciDevice', 'PciEndpoint', 'PciBridge'])
-Source('device.cc')
-DebugFlag('PciDevice')
-DebugFlag('PciEndpoint')
-DebugFlag('PciBridge')
 
-SimObject('PciUpstream.py', sim_objects=['PciUpstream'])
-Source('upstream.cc')
-DebugFlag('PciUpstream')
+class PciToPciBridge(PciBridge):
+    type = "PciToPciBridge"
+    cxx_class = "gem5::PciToPciBridge"
+    cxx_header = "dev/pci/p2p_bridge.hh"
 
-SimObject('PciUpDownBridge.py', sim_objects=['PciUpDownBridge'])
-Source('up_down_bridge.cc')
-DebugFlag('PciUpDownBridge')
 
-SimObject('PciHost.py', sim_objects=['PciHost', 'GenericPciHost'])
-Source('host.cc')
-DebugFlag('PciHost')
+class PciToPciUpstream(PciUpstream):
+    type = "PciToPciUpstream"
+    cxx_class = "gem5::PciToPciUpstream"
+    cxx_header = "dev/pci/p2p_upstream.hh"
 
-SimObject('PciToPciBridge.py', sim_objects=[
-    'PciToPciBridge', 'PciToPciUpstream'
-])
-Source('p2p_bridge.cc')
-Source('p2p_upstream.cc')
-DebugFlag('PciToPciBridge')
-
-SimObject('CopyEngine.py', sim_objects=['CopyEngine'])
-Source('copy_engine.cc')
-DebugFlag('DMACopyEngine')
+    bridge = Param.PciUpDownBridge(PciUpDownBridge(), "PCI to PCI bridge")
+    device = Param.PciToPciBridge(PciToPciBridge(), "PCI to PCI bridge device")

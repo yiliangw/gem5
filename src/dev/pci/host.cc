@@ -38,7 +38,6 @@
 #include "dev/pci/host.hh"
 
 #include "base/addr_range.hh"
-#include "debug/PciHost.hh"
 #include "dev/pci/device.hh"
 #include "dev/pci/types.hh"
 #include "dev/pci/upstream.hh"
@@ -52,7 +51,7 @@ namespace gem5
 PciHost::PciHost(const PciHostParams &p)
     : PciUpstream(p), bridge(p.bridge)
 {
-    bridge->setHost(this);
+    bridge->setUpstream(this);
 }
 
 PciHost::~PciHost()
@@ -80,23 +79,34 @@ GenericPciHost::getConfigAddrRange() const
 }
 
 AddrRange
-GenericPciHost::interfaceConfigRange(const PciDevAddr &dev_addr) const
+GenericPciHost::interfaceConfigRange(PciBusNum bus_num,
+                                     const PciDevAddr &dev_addr) const
 {
-    Addr bus_addr = (getBusNum() << 8) + (dev_addr.dev << 3) + dev_addr.func;
+    Addr bus_addr = (bus_num << 8) + (dev_addr.dev << 3) + dev_addr.func;
 
     Addr start = confBase + (bus_addr << confDeviceBits);
 
     return RangeSize(start, 1 << confDeviceBits);
 }
 
+AddrRange
+GenericPciHost::interfaceBusConfigRange(PciBusNum start_bus,
+                                        PciBusNum end_bus) const
+{
+    Addr start = confBase + (start_bus << (8 + confDeviceBits));
+    return RangeSize(start, (end_bus - start_bus + 1) << (8 + confDeviceBits));
+}
+
 void
-GenericPciHost::interfacePostInt(const PciDevAddr &addr, PciIntPin pin)
+GenericPciHost::interfacePostInt(PciBusNum bus_num, const PciDevAddr &addr,
+                                 PciIntPin pin)
 {
     platform.postPciInt(mapPciInterrupt(addr, pin));
 }
 
 void
-GenericPciHost::interfaceClearInt(const PciDevAddr &addr, PciIntPin pin)
+GenericPciHost::interfaceClearInt(PciBusNum bus_num, const PciDevAddr &addr,
+                                  PciIntPin pin)
 {
     platform.clearPciInt(mapPciInterrupt(addr, pin));
 }

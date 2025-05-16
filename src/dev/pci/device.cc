@@ -773,7 +773,7 @@ PciBridge::writeConfig(PacketPtr pkt)
             _config.type1.secondaryBusNum = pkt->getLE<uint8_t>();
             break;
           case PCI1_SUB_BUS_NUM:
-            _config.type1.subClassCode = pkt->getLE<uint8_t>();
+            _config.type1.subordinateBusNum = pkt->getLE<uint8_t>();
             break;
           case PCI1_SEC_LAT_TIMER:
             _config.type1.secondaryLatencyTimer = pkt->getLE<uint8_t>();

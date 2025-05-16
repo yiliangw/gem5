@@ -35,20 +35,18 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __DEV_PCI_HOST_HH__
-#define __DEV_PCI_HOST_HH__
+#ifndef __DEV_PCI_P2P_UPSTREAM_HH__
+#define __DEV_PCI_P2P_UPSTREAM_HH__
 
 #include "base/addr_range.hh"
+#include "dev/pci/p2p_bridge.hh"
 #include "dev/pci/types.hh"
 #include "dev/pci/up_down_bridge.hh"
 #include "dev/pci/upstream.hh"
-#include "params/PciHost.hh"
+#include "params/PciToPciUpstream.hh"
 
 namespace gem5
 {
-
-struct PciHostBridgeParams;
-struct GenericPciHostParams;
 
 class Platform;
 
@@ -72,107 +70,48 @@ class Platform;
  * PciHost functionality is implemented by the GenericPciHost class. The actual
  * bridge is implemented by PciHostBridge which is a member of this class.
  */
-class PciHost : public PciUpstream
+class PciToPciUpstream : public PciUpstream
 {
   public:
-    PciHost(const PciHostParams &p);
-    virtual ~PciHost();
+    PARAMS(PciToPciUpstream);
+    PciToPciUpstream(const Params &p);
+    virtual ~PciToPciUpstream();
 
-  protected:
-    PciUpDownBridge *bridge;
-};
-
-/**
- * Configurable generic PCI host interface
- *
- * The GenericPciHost provides a configurable generic PCI host
- * implementation.
- *
- * The generic controller binds to one range of physical addresses to
- * implement the PCI subsystem's configuraiton space. The base
- * address, size and mapping between memory addresses and PCI devices
- * are all configurable as simulation parameters. The basic
- * implementation supports both the Configuration Access Mechanism
- * (CAM) and Enhanced Configuration Access Mechanism (ECAM)
- * configuration space layout. The layouts can be configured by
- * changing the number of bits allocated to each device in the
- * configuration space. ECAM uses 12 bits per device, while CAM uses 8
- * bits per device.
- *
- * Interrupts are delivered via the Platform::postInt() and
- * Platform::clearInt() calls. Interrupt numbers are mapped statically
- * using the interrupt line (PciDevice::interruptLine()) returned from
- * the device. Implementations may override mapPciInterrupt() to
- * dynamically map a PciDevAddr and PciIntPin to a platform-specific
- * interrupt.
- *
- * All PCI memory spaces (IO, prefetchable, and non-prefetchable)
- * support a simple base+offset mapping that can be configured using
- * simulation parameters. The base defaults to 0 for all of them.
- */
-class GenericPciHost : public PciHost
-{
-  public:
-    GenericPciHost(const GenericPciHostParams &p);
-    virtual ~GenericPciHost();
-
+    /**
+     * Get the range for the configuration memory space for which this PCI
+     * host is responsible. The range should include the full configuration
+     * space even where no bus/device are present.
+     */
     AddrRange getConfigAddrRange() const override;
 
-  protected: // PciUpstream
+  protected:
     AddrRange interfaceConfigRange(PciBusNum bus_num,
                                    const PciDevAddr &dev_addr) const override;
 
-    Addr
-    interfacePioAddr(PciBusNum bus_num, const PciDevAddr &dev_addr,
-                     Addr pci_addr) const override
-    {
-        return pciPioBase + pci_addr;
-    }
+    Addr interfacePioAddr(PciBusNum bus_num, const PciDevAddr &dev_addr,
+                          Addr pci_addr) const override;
 
-    Addr
-    interfaceMemAddr(PciBusNum bus_num, const PciDevAddr &dev_addr,
-                     Addr pci_addr) const override
-    {
-        return pciMemBase + pci_addr;
-    }
+    Addr interfaceMemAddr(PciBusNum bus_num, const PciDevAddr &dev_addr,
+                          Addr pci_addr) const override;
 
-    Addr
-    interfaceDmaAddr(PciBusNum bus_num, const PciDevAddr &dev_addr,
-                     Addr pci_addr) const override
-    {
-        return pciDmaBase + pci_addr;
-    }
+    Addr interfaceDmaAddr(PciBusNum bus_num, const PciDevAddr &dev_addr,
+                          Addr pci_addr) const override;
 
     AddrRange interfaceBusConfigRange(PciBusNum start_bus,
                                       PciBusNum end_bus) const override;
 
-    PciBusNum
-    getBusNum() const override
-    {
-        return 0;
-    }
+    PciBusNum getBusNum() const override;
 
-  protected: // Interrupt handling
-    void interfacePostInt(PciBusNum bus_num, const PciDevAddr &addr,
+    void interfacePostInt(PciBusNum bus_num, const PciDevAddr &dev_addr,
                           PciIntPin pin) override;
-    void interfaceClearInt(PciBusNum bus_num, const PciDevAddr &addr,
+    void interfaceClearInt(PciBusNum bus_num, const PciDevAddr &dev_addr,
                            PciIntPin pin) override;
 
-    virtual uint32_t mapPciInterrupt(const PciDevAddr &dev_addr,
-                                     PciIntPin pin) const;
-
-  protected:
-    Platform &platform;
-
-    const Addr confBase;
-    const Addr confSize;
-    const uint8_t confDeviceBits;
-
-    const Addr pciPioBase;
-    const Addr pciMemBase;
-    const Addr pciDmaBase;
+    PciUpDownBridge *bridge;
+    PciToPciBridge *device;
+    PciUpstream::BridgeInterface nextUpstream;
 };
 
 } // namespace gem5
 
-#endif // __DEV_PCI_HOST_HH__
+#endif // __DEV_PCI_P2P_UPSTREAM_HH__

@@ -35,70 +35,72 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "dev/pci/host_bridge.hh"
+#include "dev/pci/up_down_bridge.hh"
 
 #include <algorithm>
 
 #include "base/addr_range.hh"
 #include "base/logging.hh"
-#include "debug/PciHostBridge.hh"
-#include "dev/pci/host.hh"
-#include "params/PciHostBridge.hh"
+#include "base/types.hh"
+#include "debug/PciUpDownBridge.hh"
+#include "dev/pci/upstream.hh"
+#include "params/PciUpDownBridge.hh"
+#include "sim/clocked_object.hh"
 
 namespace gem5
 {
 
-PciHostBridge::PciHostBridge(const PciHostBridgeParams &p)
+PciUpDownBridge::PciUpDownBridge(const PciUpDownBridgeParams &p)
     : ClockedObject(p),
-      memRequestPort(p.name + ".mem_request_port", *this, pciResponsePort,
-                     ticksToCycles(p.delay), p.req_size),
-      pciResponsePort(p.name + ".pci_response_port", *this, memRequestPort,
-                      ticksToCycles(p.delay), p.resp_size),
-      pciRequestPort(p.name + ".pci_request_port", *this, memResponsePort,
-                     ticksToCycles(p.delay), p.req_size),
-      memResponsePort(p.name + ".mem_response_port", *this, pciRequestPort,
-                      ticksToCycles(p.delay), p.resp_size)
+      upRequestPort(p.name + ".up_request_port", *this, downResponsePort,
+                    ticksToCycles(p.delay), p.req_size),
+      downResponsePort(p.name + ".down_response_port", *this, upRequestPort,
+                       ticksToCycles(p.delay), p.resp_size),
+      downRequestPort(p.name + ".down_request_port", *this, upResponsePort,
+                      ticksToCycles(p.delay), p.req_size),
+      upResponsePort(p.name + ".up_response_port", *this, downRequestPort,
+                     ticksToCycles(p.delay), p.resp_size)
 {}
 
-PciHostBridge::~PciHostBridge() {}
+PciUpDownBridge::~PciUpDownBridge() {}
 
 Port &
-PciHostBridge::getPort(const std::string &if_name, PortID idx)
+PciUpDownBridge::getPort(const std::string &if_name, PortID idx)
 {
-    if (if_name == "mem_request_port")
-        return memRequestPort;
-    else if (if_name == "mem_response_port")
-        return memResponsePort;
-    else if (if_name == "pci_request_port")
-        return pciRequestPort;
-    else if (if_name == "pci_response_port")
-        return pciResponsePort;
+    if (if_name == "up_request_port")
+        return upRequestPort;
+    else if (if_name == "up_response_port")
+        return upResponsePort;
+    else if (if_name == "down_request_port")
+        return downRequestPort;
+    else if (if_name == "down_response_port")
+        return downResponsePort;
     else
         return ClockedObject::getPort(if_name, idx);
 }
 
 void
-PciHostBridge::init()
+PciUpDownBridge::init()
 {
-    fatal_if(!host, "No PCI host given for this bridge.\n");
+    fatal_if(!upstream, "No PCI upstream given for this bridge.\n");
 
     // make sure all ports are connected
-    if (!memRequestPort.isConnected() || !pciResponsePort.isConnected() ||
-        !pciRequestPort.isConnected() || !memResponsePort.isConnected())
+    if (!upRequestPort.isConnected() || !downResponsePort.isConnected() ||
+        !downRequestPort.isConnected() || !upResponsePort.isConnected())
         fatal("All ports of the host bridge must be connected.\n");
 
-    memResponsePort.ranges = { host->getConfigAddrRange() };
-    pciResponsePort.ranges = { AddrRange(0, -1) };
+    upResponsePort.ranges = { upstream->getConfigAddrRange() };
+    downResponsePort.ranges = { AddrRange(0, -1) };
 
-    pciResponsePort.sendRangeChange();
-    memResponsePort.sendRangeChange();
+    downResponsePort.sendRangeChange();
+    upResponsePort.sendRangeChange();
 
-    host->sendBusChange();
+    upstream->sendBusChange();
 }
 
-PciHostBridge::HostBridgeResponsePort::HostBridgeResponsePort(
-    const std::string &_name, PciHostBridge &_bridge,
-    HostBridgeRequestPort &_requestPort, Cycles _delay, int _resp_limit)
+PciUpDownBridge::UpDownBridgeResponsePort::UpDownBridgeResponsePort(
+    const std::string &_name, PciUpDownBridge &_bridge,
+    UpDownBridgeRequestPort &_requestPort, Cycles _delay, int _resp_limit)
     : ResponsePort(_name),
       bridge(_bridge),
       requestPort(_requestPort),
@@ -110,9 +112,9 @@ PciHostBridge::HostBridgeResponsePort::HostBridgeResponsePort(
       sendEvent([this] { trySendTiming(); }, _name)
 {}
 
-PciHostBridge::HostBridgeRequestPort::HostBridgeRequestPort(
-    const std::string &_name, PciHostBridge &_bridge,
-    HostBridgeResponsePort &_responsePort, Cycles _delay, int _req_limit)
+PciUpDownBridge::UpDownBridgeRequestPort::UpDownBridgeRequestPort(
+    const std::string &_name, PciUpDownBridge &_bridge,
+    UpDownBridgeResponsePort &_responsePort, Cycles _delay, int _req_limit)
     : RequestPort(_name),
       bridge(_bridge),
       responsePort(_responsePort),
@@ -122,26 +124,26 @@ PciHostBridge::HostBridgeRequestPort::HostBridgeRequestPort(
 {}
 
 bool
-PciHostBridge::HostBridgeResponsePort::respQueueFull() const
+PciUpDownBridge::UpDownBridgeResponsePort::respQueueFull() const
 {
     return outstandingResponses == respQueueLimit;
 }
 
 bool
-PciHostBridge::HostBridgeRequestPort::reqQueueFull() const
+PciUpDownBridge::UpDownBridgeRequestPort::reqQueueFull() const
 {
     return transmitList.size() == reqQueueLimit;
 }
 
 bool
-PciHostBridge::HostBridgeRequestPort::recvTimingResp(PacketPtr pkt)
+PciUpDownBridge::UpDownBridgeRequestPort::recvTimingResp(PacketPtr pkt)
 {
     // all checks are done when the request is accepted on the response
     // side, so we are guaranteed to have space for the response
-    DPRINTF(PciHostBridge, "recvTimingResp: %s addr 0x%x\n", pkt->cmdString(),
-            pkt->getAddr());
+    DPRINTF(PciUpDownBridge, "recvTimingResp: %s addr 0x%x\n",
+            pkt->cmdString(), pkt->getAddr());
 
-    DPRINTF(PciHostBridge, "Request queue size: %d\n", transmitList.size());
+    DPRINTF(PciUpDownBridge, "Request queue size: %d\n", transmitList.size());
 
     // technically the packet only reaches us after the header delay,
     // and typically we also need to deserialise any payload (unless
@@ -155,9 +157,9 @@ PciHostBridge::HostBridgeRequestPort::recvTimingResp(PacketPtr pkt)
 }
 
 bool
-PciHostBridge::HostBridgeResponsePort::recvTimingReq(PacketPtr pkt)
+PciUpDownBridge::UpDownBridgeResponsePort::recvTimingReq(PacketPtr pkt)
 {
-    DPRINTF(PciHostBridge, "recvTimingReq: %s addr 0x%x\n", pkt->cmdString(),
+    DPRINTF(PciUpDownBridge, "recvTimingReq: %s addr 0x%x\n", pkt->cmdString(),
             pkt->getAddr());
 
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
@@ -169,7 +171,7 @@ PciHostBridge::HostBridgeResponsePort::recvTimingReq(PacketPtr pkt)
     if (retryReq)
         return false;
 
-    DPRINTF(PciHostBridge, "Response queue size: %d outresp: %d\n",
+    DPRINTF(PciUpDownBridge, "Response queue size: %d outresp: %d\n",
             transmitList.size(), outstandingResponses);
 
     bool configError = isConfigError(pkt->getAddr());
@@ -177,18 +179,18 @@ PciHostBridge::HostBridgeResponsePort::recvTimingReq(PacketPtr pkt)
     // if the request queue is full then there is no hope, unless it is a
     // configuration error which is directly responded.
     if (requestPort.reqQueueFull() && !configError) {
-        DPRINTF(PciHostBridge, "Request queue full\n");
+        DPRINTF(PciUpDownBridge, "Request queue full\n");
         retryReq = true;
     } else {
         // look at the response queue if we expect to see a response
         bool expects_response = pkt->needsResponse();
         if (expects_response) {
             if (respQueueFull()) {
-                DPRINTF(PciHostBridge, "Response queue full\n");
+                DPRINTF(PciUpDownBridge, "Response queue full\n");
                 retryReq = true;
             } else {
                 // ok to send the request with space for the response
-                DPRINTF(PciHostBridge, "Reserving space for response\n");
+                DPRINTF(PciUpDownBridge, "Reserving space for response\n");
                 assert(outstandingResponses != respQueueLimit);
                 ++outstandingResponses;
 
@@ -230,17 +232,18 @@ PciHostBridge::HostBridgeResponsePort::recvTimingReq(PacketPtr pkt)
 }
 
 void
-PciHostBridge::HostBridgeResponsePort::retryStalledReq()
+PciUpDownBridge::UpDownBridgeResponsePort::retryStalledReq()
 {
     if (retryReq) {
-        DPRINTF(PciHostBridge, "Request waiting for retry, now retrying\n");
+        DPRINTF(PciUpDownBridge, "Request waiting for retry, now retrying\n");
         retryReq = false;
         sendRetryReq();
     }
 }
 
 void
-PciHostBridge::HostBridgeRequestPort::schedTimingReq(PacketPtr pkt, Tick when)
+PciUpDownBridge::UpDownBridgeRequestPort::schedTimingReq(PacketPtr pkt,
+                                                         Tick when)
 {
     // If we're about to put this packet at the head of the queue, we
     // need to schedule an event to do the transmit.  Otherwise there
@@ -256,8 +259,8 @@ PciHostBridge::HostBridgeRequestPort::schedTimingReq(PacketPtr pkt, Tick when)
 }
 
 void
-PciHostBridge::HostBridgeResponsePort::schedTimingResp(PacketPtr pkt,
-                                                       Tick when)
+PciUpDownBridge::UpDownBridgeResponsePort::schedTimingResp(PacketPtr pkt,
+                                                           Tick when)
 {
     // If we're about to put this packet at the head of the queue, we
     // need to schedule an event to do the transmit.  Otherwise there
@@ -271,7 +274,7 @@ PciHostBridge::HostBridgeResponsePort::schedTimingResp(PacketPtr pkt,
 }
 
 void
-PciHostBridge::HostBridgeRequestPort::trySendTiming()
+PciUpDownBridge::UpDownBridgeRequestPort::trySendTiming()
 {
     assert(!transmitList.empty());
 
@@ -281,18 +284,18 @@ PciHostBridge::HostBridgeRequestPort::trySendTiming()
 
     PacketPtr pkt = req.pkt;
 
-    DPRINTF(PciHostBridge, "trySend request addr 0x%x, queue size %d\n",
+    DPRINTF(PciUpDownBridge, "trySend request addr 0x%x, queue size %d\n",
             pkt->getAddr(), transmitList.size());
 
     if (sendTimingReq(pkt)) {
         // send successful
         transmitList.pop_front();
-        DPRINTF(PciHostBridge, "trySend request successful\n");
+        DPRINTF(PciUpDownBridge, "trySend request successful\n");
 
         // If there are more packets to send, schedule event to try again.
         if (!transmitList.empty()) {
             DeferredPacket next_req = transmitList.front();
-            DPRINTF(PciHostBridge, "Scheduling next send\n");
+            DPRINTF(PciUpDownBridge, "Scheduling next send\n");
             bridge.schedule(sendEvent,
                             std::max(next_req.tick, bridge.clockEdge()));
         }
@@ -309,7 +312,7 @@ PciHostBridge::HostBridgeRequestPort::trySendTiming()
 }
 
 void
-PciHostBridge::HostBridgeResponsePort::trySendTiming()
+PciUpDownBridge::UpDownBridgeResponsePort::trySendTiming()
 {
     assert(!transmitList.empty());
 
@@ -319,13 +322,13 @@ PciHostBridge::HostBridgeResponsePort::trySendTiming()
 
     PacketPtr pkt = resp.pkt;
 
-    DPRINTF(PciHostBridge, "trySend response addr 0x%x, outstanding %d\n",
+    DPRINTF(PciUpDownBridge, "trySend response addr 0x%x, outstanding %d\n",
             pkt->getAddr(), outstandingResponses);
 
     if (sendTimingResp(pkt)) {
         // send successful
         transmitList.pop_front();
-        DPRINTF(PciHostBridge, "trySend response successful\n");
+        DPRINTF(PciUpDownBridge, "trySend response successful\n");
 
         assert(outstandingResponses != 0);
         --outstandingResponses;
@@ -333,7 +336,7 @@ PciHostBridge::HostBridgeResponsePort::trySendTiming()
         // If there are more packets to send, schedule event to try again.
         if (!transmitList.empty()) {
             DeferredPacket next_resp = transmitList.front();
-            DPRINTF(PciHostBridge, "Scheduling next send\n");
+            DPRINTF(PciUpDownBridge, "Scheduling next send\n");
             bridge.schedule(sendEvent,
                             std::max(next_resp.tick, bridge.clockEdge()));
         }
@@ -342,7 +345,7 @@ PciHostBridge::HostBridgeResponsePort::trySendTiming()
         // a request, it will definitely be possible to accept it now
         // since there is guaranteed space in the response queue
         if (!requestPort.reqQueueFull() && retryReq) {
-            DPRINTF(PciHostBridge,
+            DPRINTF(PciUpDownBridge,
                     "Request waiting for retry, now retrying\n");
             retryReq = false;
             sendRetryReq();
@@ -354,19 +357,19 @@ PciHostBridge::HostBridgeResponsePort::trySendTiming()
 }
 
 void
-PciHostBridge::HostBridgeRequestPort::recvReqRetry()
+PciUpDownBridge::UpDownBridgeRequestPort::recvReqRetry()
 {
     trySendTiming();
 }
 
 void
-PciHostBridge::HostBridgeResponsePort::recvRespRetry()
+PciUpDownBridge::UpDownBridgeResponsePort::recvRespRetry()
 {
     trySendTiming();
 }
 
 Tick
-PciHostBridge::HostBridgeResponsePort::recvAtomic(PacketPtr pkt)
+PciUpDownBridge::UpDownBridgeResponsePort::recvAtomic(PacketPtr pkt)
 {
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
                                      "is responding");
@@ -387,7 +390,7 @@ PciHostBridge::HostBridgeResponsePort::recvAtomic(PacketPtr pkt)
 }
 
 Tick
-PciHostBridge::HostBridgeResponsePort::recvAtomicBackdoor(
+PciUpDownBridge::UpDownBridgeResponsePort::recvAtomicBackdoor(
     PacketPtr pkt, MemBackdoorPtr &backdoor)
 {
     if (isConfigError(pkt->getAddr())) {
@@ -399,7 +402,7 @@ PciHostBridge::HostBridgeResponsePort::recvAtomicBackdoor(
 }
 
 void
-PciHostBridge::HostBridgeResponsePort::recvFunctional(PacketPtr pkt)
+PciUpDownBridge::UpDownBridgeResponsePort::recvFunctional(PacketPtr pkt)
 {
     pkt->pushLabel(name());
 
@@ -435,7 +438,7 @@ PciHostBridge::HostBridgeResponsePort::recvFunctional(PacketPtr pkt)
 }
 
 void
-PciHostBridge::HostBridgeResponsePort::recvMemBackdoorReq(
+PciUpDownBridge::UpDownBridgeResponsePort::recvMemBackdoorReq(
     const MemBackdoorReq &req, MemBackdoorPtr &backdoor)
 {
     if (isConfigError(req.range().start())) {
@@ -446,7 +449,7 @@ PciHostBridge::HostBridgeResponsePort::recvMemBackdoorReq(
 }
 
 bool
-PciHostBridge::HostBridgeRequestPort::trySatisfyFunctional(PacketPtr pkt)
+PciUpDownBridge::UpDownBridgeRequestPort::trySatisfyFunctional(PacketPtr pkt)
 {
     bool found = false;
     auto i = transmitList.begin();
@@ -463,15 +466,15 @@ PciHostBridge::HostBridgeRequestPort::trySatisfyFunctional(PacketPtr pkt)
 }
 
 AddrRangeList
-PciHostBridge::HostBridgeResponsePort::getAddrRanges() const
+PciUpDownBridge::UpDownBridgeResponsePort::getAddrRanges() const
 {
     return ranges;
 }
 
 AddrRangeList
-PciHostBridge::MemSideResponsePort::getAddrRanges() const
+PciUpDownBridge::UpSideResponsePort::getAddrRanges() const
 {
-    AddrRange configRange = bridge.host->getConfigAddrRange();
+    AddrRange configRange = bridge.upstream->getConfigAddrRange();
     AddrRangeList filteredRanges{ configRange };
 
     // Create a range list with the full configuration range and all
@@ -486,10 +489,10 @@ PciHostBridge::MemSideResponsePort::getAddrRanges() const
 }
 
 bool
-PciHostBridge::MemSideResponsePort::isConfigError(Addr addr) const
+PciUpDownBridge::UpSideResponsePort::isConfigError(Addr addr) const
 {
     // Do not return an error for address that aren't configuration.
-    if (!bridge.host->getConfigAddrRange().contains(addr)) {
+    if (!bridge.upstream->getConfigAddrRange().contains(addr)) {
         return false;
     }
 
@@ -503,21 +506,21 @@ PciHostBridge::MemSideResponsePort::isConfigError(Addr addr) const
 }
 
 bool
-PciHostBridge::PciSideResponsePort::isConfigError(Addr addr) const
+PciUpDownBridge::DownSideResponsePort::isConfigError(Addr addr) const
 {
     // Treat all configuration address as an error to not let the packet pass
     // to the memory side.
-    return bridge.host->getConfigAddrRange().contains(addr);
+    return bridge.upstream->getConfigAddrRange().contains(addr);
 }
 
 void
-PciHostBridge::PciSideRequestPort::recvRangeChange()
+PciUpDownBridge::DownSideRequestPort::recvRangeChange()
 {
-    AddrRangeList pciRanges = getAddrRanges();
+    AddrRangeList downRanges = getAddrRanges();
 
     // Avoid potential loop of range change.
-    if (pciRanges != responsePort.ranges) {
-        responsePort.ranges = pciRanges;
+    if (downRanges != responsePort.ranges) {
+        responsePort.ranges = downRanges;
         responsePort.sendRangeChange();
     }
 }

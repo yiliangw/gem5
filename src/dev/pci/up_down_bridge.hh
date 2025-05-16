@@ -35,24 +35,23 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __DEV_PCI_HOST_BRIDGE_HH__
-#define __DEV_PCI_HOST_BRIDGE_HH__
+#ifndef __DEV_PCI_UP_DOWN_BRIDGE_HH__
+#define __DEV_PCI_UP_DOWN_BRIDGE_HH__
 
+#include "dev/pci/upstream.hh"
 #include "mem/port.hh"
-#include "params/PciHostBridge.hh"
+#include "params/PciUpDownBridge.hh"
 #include "sim/clocked_object.hh"
 
 namespace gem5
 {
-
-class PciHost;
 
 /**
  * The PCI host bridge is responsible to bridge memory packets between the
  * system bus and the PCI main bus as well as delivering PCI interrupts to
  * the CPU. A host bridge is essentially a two way bridge.
  *
- * A PciHost must be associated with the bridge via PciHostBridge::setHost().
+ * A PciHost must be associated with the bridge via PciUpDownBridge::setHost().
  * The range provided by PciHost::getConfigAddrRange() will be bridged from
  * the system bus to the PCI bus, if a device exists for it. Otherwise, the
  * bridge will response with the PCI error code.
@@ -62,7 +61,7 @@ class PciHost;
  * to PCI bus for addresses that are known on the PCI bus (via
  * RequestPort::recvRangeChange()).
  */
-class PciHostBridge : public ClockedObject
+class PciUpDownBridge : public ClockedObject
 {
   private:
     /**
@@ -79,7 +78,7 @@ class PciHostBridge : public ClockedObject
     };
 
     // Forward declaration to allow the response port to have a pointer
-    class HostBridgeRequestPort;
+    class UpDownBridgeRequestPort;
 
     /**
      * The response port base to be used on both side of the bridge.
@@ -88,16 +87,16 @@ class PciHostBridge : public ClockedObject
      * is responsible for. The response port also has a buffer for the
      * responses not yet sent.
      */
-    class HostBridgeResponsePort : public ResponsePort
+    class UpDownBridgeResponsePort : public ResponsePort
     {
-        friend PciHostBridge;
+        friend PciUpDownBridge;
 
       protected:
         /** The PCI host bridge to which this port belongs. */
-        PciHostBridge &bridge;
+        PciUpDownBridge &bridge;
 
         /** Request port on the other side of the bridge. */
-        HostBridgeRequestPort &requestPort;
+        UpDownBridgeRequestPort &requestPort;
 
         /** Minimum request delay though this bridge. */
         const Cycles delay;
@@ -147,7 +146,7 @@ class PciHostBridge : public ClockedObject
 
       public:
         /**
-         * Constructor for the HostBridgeResponsePort.
+         * Constructor for the UpDownBridgeResponsePort.
          *
          * @param _name the port name including the owner
          * @param _bridge the structural owner
@@ -156,10 +155,10 @@ class PciHostBridge : public ClockedObject
          * @param _delay the delay in cycles from receiving to sending
          * @param _resp_limit the size of the response queue
          */
-        HostBridgeResponsePort(const std::string &_name,
-                               PciHostBridge &_bridge,
-                               HostBridgeRequestPort &_requestPort,
-                               Cycles _delay, int _resp_limit);
+        UpDownBridgeResponsePort(const std::string &_name,
+                                 PciUpDownBridge &_bridge,
+                                 UpDownBridgeRequestPort &_requestPort,
+                                 Cycles _delay, int _resp_limit);
 
         /**
          * Queue a response packet to be sent out later and also schedule
@@ -219,14 +218,14 @@ class PciHostBridge : public ClockedObject
      * two way bridge. The request port has a buffer for the requests not yet
      * sent.
      */
-    class HostBridgeRequestPort : public RequestPort
+    class UpDownBridgeRequestPort : public RequestPort
     {
       protected:
         /** The bridge to which this port belongs. */
-        PciHostBridge &bridge;
+        PciUpDownBridge &bridge;
 
         /** The response port on the other side of the bridge. */
-        HostBridgeResponsePort &responsePort;
+        UpDownBridgeResponsePort &responsePort;
 
       private:
         /** Minimum delay though this bridge. */
@@ -255,7 +254,7 @@ class PciHostBridge : public ClockedObject
 
       public:
         /**
-         * Constructor for the HostBridgeRequestPort.
+         * Constructor for the UpDownBridgeRequestPort.
          *
          * @param _name the port name including the owner
          * @param _bridge the structural owner
@@ -264,9 +263,10 @@ class PciHostBridge : public ClockedObject
          * @param _delay the delay in cycles from receiving to sending
          * @param _req_limit the size of the request queue
          */
-        HostBridgeRequestPort(const std::string &_name, PciHostBridge &_bridge,
-                              HostBridgeResponsePort &_responsePort,
-                              Cycles _delay, int _req_limit);
+        UpDownBridgeRequestPort(const std::string &_name,
+                                PciUpDownBridge &_bridge,
+                                UpDownBridgeResponsePort &_responsePort,
+                                Cycles _delay, int _req_limit);
 
         /**
          * Is this side blocked from accepting new request packets.
@@ -307,11 +307,11 @@ class PciHostBridge : public ClockedObject
     /**
      * Specific implementation for the memory side response port.
      */
-    class MemSideResponsePort : public HostBridgeResponsePort
+    class UpSideResponsePort : public UpDownBridgeResponsePort
     {
       public:
         /**
-         * Constructor for the MemSideResponsePort.
+         * Constructor for the UpSideResponsePort.
          *
          * @param _name the port name including the owner
          * @param _bridge the structural owner
@@ -320,11 +320,11 @@ class PciHostBridge : public ClockedObject
          * @param _delay the delay in cycles from receiving to sending
          * @param _req_limit the size of the Response queue
          */
-        MemSideResponsePort(const std::string &_name, PciHostBridge &_bridge,
-                            HostBridgeRequestPort &_responsePort,
-                            Cycles _delay, int _req_limit)
-            : HostBridgeResponsePort(_name, _bridge, _responsePort, _delay,
-                                     _req_limit)
+        UpSideResponsePort(const std::string &_name, PciUpDownBridge &_bridge,
+                           UpDownBridgeRequestPort &_responsePort,
+                           Cycles _delay, int _req_limit)
+            : UpDownBridgeResponsePort(_name, _bridge, _responsePort, _delay,
+                                       _req_limit)
         {}
 
       protected:
@@ -340,11 +340,11 @@ class PciHostBridge : public ClockedObject
     /**
      * Specific implementation for the PCI side response port.
      */
-    class PciSideResponsePort : public HostBridgeResponsePort
+    class DownSideResponsePort : public UpDownBridgeResponsePort
     {
       public:
         /**
-         * Constructor for the PciSideResponsePort.
+         * Constructor for the DownSideResponsePort.
          *
          * @param _name the port name including the owner
          * @param _bridge the structural owner
@@ -353,11 +353,12 @@ class PciHostBridge : public ClockedObject
          * @param _delay the delay in cycles from receiving to sending
          * @param _req_limit the size of the Response queue
          */
-        PciSideResponsePort(const std::string &_name, PciHostBridge &_bridge,
-                            HostBridgeRequestPort &_responsePort,
-                            Cycles _delay, int _req_limit)
-            : HostBridgeResponsePort(_name, _bridge, _responsePort, _delay,
-                                     _req_limit)
+        DownSideResponsePort(const std::string &_name,
+                             PciUpDownBridge &_bridge,
+                             UpDownBridgeRequestPort &_responsePort,
+                             Cycles _delay, int _req_limit)
+            : UpDownBridgeResponsePort(_name, _bridge, _responsePort, _delay,
+                                       _req_limit)
         {}
 
       protected:
@@ -369,11 +370,11 @@ class PciHostBridge : public ClockedObject
     /**
      * Specific implementation for the PCI side request port.
      */
-    class PciSideRequestPort : public HostBridgeRequestPort
+    class DownSideRequestPort : public UpDownBridgeRequestPort
     {
       public:
         /**
-         * Constructor for the PciSideRequestPort.
+         * Constructor for the DownSideRequestPort.
          *
          * @param _name the port name including the owner
          * @param _bridge the structural owner
@@ -382,11 +383,11 @@ class PciHostBridge : public ClockedObject
          * @param _delay the delay in cycles from receiving to sending
          * @param _req_limit the size of the request queue
          */
-        PciSideRequestPort(const std::string &_name, PciHostBridge &_bridge,
-                           HostBridgeResponsePort &_responsePort,
-                           Cycles _delay, int _req_limit)
-            : HostBridgeRequestPort(_name, _bridge, _responsePort, _delay,
-                                    _req_limit)
+        DownSideRequestPort(const std::string &_name, PciUpDownBridge &_bridge,
+                            UpDownBridgeResponsePort &_responsePort,
+                            Cycles _delay, int _req_limit)
+            : UpDownBridgeRequestPort(_name, _bridge, _responsePort, _delay,
+                                      _req_limit)
         {}
 
       protected:
@@ -394,15 +395,15 @@ class PciHostBridge : public ClockedObject
     };
 
   protected:
-    // Bridge PCI -> Memory
-    HostBridgeRequestPort memRequestPort;
-    PciSideResponsePort pciResponsePort;
+    // Bridge Downstream -> Upstream
+    UpDownBridgeRequestPort upRequestPort;
+    DownSideResponsePort downResponsePort;
 
-    // Bridge memory -> PCI
-    PciSideRequestPort pciRequestPort;
-    MemSideResponsePort memResponsePort;
+    // Bridge Upstream -> Downstream
+    DownSideRequestPort downRequestPort;
+    UpSideResponsePort upResponsePort;
 
-    PciHost *host;
+    PciUpstream *upstream;
 
   public:
     Port &getPort(const std::string &if_name,
@@ -411,15 +412,15 @@ class PciHostBridge : public ClockedObject
     void init() override;
 
     void
-    setHost(PciHost *host)
+    setUpstream(PciUpstream *upstream)
     {
-        this->host = host;
+        this->upstream = upstream;
     }
 
-    PciHostBridge(const PciHostBridgeParams &p);
-    virtual ~PciHostBridge();
+    PciUpDownBridge(const PciUpDownBridgeParams &p);
+    virtual ~PciUpDownBridge();
 };
 
 } // namespace gem5
 
-#endif //__DEV_PCI_HOST_BRIDGE_HH__
+#endif //__DEV_PCI_UP_DOWN_BRIDGE_HH__

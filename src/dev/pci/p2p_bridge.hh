@@ -35,93 +35,59 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "dev/pci/upstream.hh"
+#ifndef __DEV_PCI_P2P_BRIDGE_HH__
+#define __DEV_PCI_P2P_BRIDGE_HH__
 
-#include "debug/PciUpstream.hh"
 #include "dev/pci/device.hh"
 #include "dev/pci/types.hh"
-#include "sim/sim_object.hh"
+#include "mem/packet.hh"
+#include "params/PciBridge.hh"
+#include "params/PciToPciBridge.hh"
 
 namespace gem5
 {
 
-PciUpstream::PciUpstream(const PciUpstreamParams &p) : SimObject(p) {}
-
-PciUpstream::~PciUpstream() {}
-
-PciUpstream::DeviceInterface
-PciUpstream::registerDevice(PciDevice *device, PciDevAddr dev_addr,
-                            PciIntPin pin)
+class PciToPciBridge : public PciBridge
 {
-    auto map_entry = devices.emplace(dev_addr, device);
+  public:
+    PARAMS(PciToPciBridge);
 
-    DPRINTF(PciUpstream, "%02x:%02x.%i: Registering device\n", getBusNum(),
-            dev_addr.dev, dev_addr.func);
+    PciToPciBridge(const Params &p) : PciBridge(p) {}
 
-    fatal_if(!map_entry.second, "%02x:%02x.%i: PCI bus ID collision\n",
-             getBusNum(), dev_addr.dev, dev_addr.func);
+    virtual ~PciToPciBridge() {}
 
-    return DeviceInterface(*this, dev_addr, pin);
-}
-
-PciUpstream::BridgeInterface
-PciUpstream::registerBridge()
-{
-    return BridgeInterface(*this);
-}
-
-PciDevice *
-PciUpstream::getDevice(const PciDevAddr &addr)
-{
-    auto device = devices.find(addr);
-    return device != devices.end() ? device->second : nullptr;
-}
-
-const PciDevice *
-PciUpstream::getDevice(const PciDevAddr &addr) const
-{
-    auto device = devices.find(addr);
-    return device != devices.end() ? device->second : nullptr;
-}
-
-PciUpstream::DeviceInterface::DeviceInterface(PciUpstream &upstream,
-                                              const PciDevAddr &dev_addr,
-                                              PciIntPin pin)
-    : upstream(upstream), devAddr(dev_addr), interruptPin(pin)
-{}
-
-PciUpstream::BridgeInterface::BridgeInterface(PciUpstream &upstream)
-    : upstream(upstream)
-{}
-const std::string
-PciUpstream::DeviceInterface::name() const
-{
-    return csprintf("%s.interface[%02x:%02x.%i]", upstream.name(),
-                    upstream.getBusNum(), devAddr.dev, devAddr.func);
-}
-
-void
-PciUpstream::DeviceInterface::postInt()
-{
-    DPRINTF(PciUpstream, "postInt\n");
-
-    upstream.interfacePostInt(upstream.getBusNum(), devAddr, interruptPin);
-}
-
-void
-PciUpstream::DeviceInterface::clearInt()
-{
-    DPRINTF(PciUpstream, "clearInt\n");
-
-    upstream.interfaceClearInt(upstream.getBusNum(), devAddr, interruptPin);
-}
-
-void
-PciUpstream::sendBusChange()
-{
-    for (std::pair<PciDevAddr, PciDevice *> device : devices) {
-        device.second->recvBusChange();
+    PciBusNum
+    getPrimaryBus()
+    {
+        return config().primaryBusNum;
     }
-}
+
+    PciBusNum
+    getSecondaryBus()
+    {
+        return config().secondaryBusNum;
+    }
+
+    PciBusNum
+    getSubordinateBus()
+    {
+        return config().subordinateBusNum;
+    }
+
+  protected:
+    Tick
+    writeDevice(PacketPtr pkt)
+    {
+        return 0;
+    }
+
+    Tick
+    readDevice(PacketPtr pkt)
+    {
+        return 0;
+    }
+};
 
 } // namespace gem5
+
+#endif // __DEV_PCI_P2P_BRIDGE_HH__

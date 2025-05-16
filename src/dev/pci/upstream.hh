@@ -129,7 +129,8 @@ class PciUpstream : public SimObject
         AddrRange
         configRange() const
         {
-            return upstream.interfaceConfigRange(devAddr);
+            return upstream.interfaceConfigRange(upstream.getBusNum(),
+                                                 devAddr);
         }
 
         /**
@@ -142,7 +143,8 @@ class PciUpstream : public SimObject
         Addr
         pioAddr(Addr addr) const
         {
-            return upstream.interfacePioAddr(devAddr, addr);
+            return upstream.interfacePioAddr(upstream.getBusNum(), devAddr,
+                                             addr);
         }
 
         /**
@@ -155,7 +157,8 @@ class PciUpstream : public SimObject
         Addr
         memAddr(Addr addr) const
         {
-            return upstream.interfaceMemAddr(devAddr, addr);
+            return upstream.interfaceMemAddr(upstream.getBusNum(), devAddr,
+                                             addr);
         }
 
         /**
@@ -168,7 +171,8 @@ class PciUpstream : public SimObject
         Addr
         dmaAddr(Addr addr) const
         {
-            return upstream.interfaceDmaAddr(devAddr, addr);
+            return upstream.interfaceDmaAddr(upstream.getBusNum(), devAddr,
+                                             addr);
         }
 
       protected:
@@ -176,6 +180,105 @@ class PciUpstream : public SimObject
 
         const PciDevAddr devAddr;
         const PciIntPin interruptPin;
+    };
+
+    class BridgeInterface
+    {
+        friend class gem5::PciUpstream;
+
+      protected:
+        /**
+         * Instantiate a device interface
+         *
+         * @param upstream PCI upstream that this device belongs to.
+         * @param dev_addr The device's position on the PCI bus
+         * @param pin Interrupt pin
+         */
+        BridgeInterface(PciUpstream &upstream);
+
+      public:
+        BridgeInterface() = delete;
+        void operator=(const BridgeInterface &) = delete;
+
+        const std::string name() const;
+
+        /**
+         * Post a PCI interrupt to the CPU.
+         */
+        void
+        postInt(PciBusNum bus_num, const PciDevAddr &dev_addr, PciIntPin pin)
+        {
+            upstream.interfacePostInt(bus_num, dev_addr, pin);
+        }
+
+        /**
+         * Clear a posted PCI interrupt
+         */
+        void
+        clearInt(PciBusNum bus_num, const PciDevAddr &dev_addr, PciIntPin pin)
+        {
+            upstream.interfaceClearInt(bus_num, dev_addr, pin);
+        }
+
+        /**
+         * Calculate the physical address range of the PCI device
+         * configuration space.
+         *
+         * @return Address range in the system's physical address space.
+         */
+        AddrRange
+        configRange(PciBusNum bus_num, const PciDevAddr &dev_addr) const
+        {
+            return upstream.interfaceConfigRange(bus_num, dev_addr);
+        }
+
+        /**
+         * Calculate the physical address of an IO location on the PCI
+         * bus.
+         *
+         * @param addr Address in the PCI IO address space
+         * @return Address in the system's physical address space.
+         */
+        Addr
+        pioAddr(PciBusNum bus_num, const PciDevAddr &dev_addr, Addr addr) const
+        {
+            return upstream.interfacePioAddr(bus_num, dev_addr, addr);
+        }
+
+        /**
+         * Calculate the physical address of a non-prefetchable memory
+         * location in the PCI address space.
+         *
+         * @param addr Address in the PCI memory address space
+         * @return Address in the system's physical address space.
+         */
+        Addr
+        memAddr(PciBusNum bus_num, const PciDevAddr &dev_addr, Addr addr) const
+        {
+            return upstream.interfaceMemAddr(bus_num, dev_addr, addr);
+        }
+
+        /**
+         * Calculate the physical address of a prefetchable memory
+         * location in the PCI address space.
+         *
+         * @param addr Address in the PCI DMA memory address space
+         * @return Address in the system's physical address space.
+         */
+        Addr
+        dmaAddr(PciBusNum bus_num, const PciDevAddr &dev_addr, Addr addr) const
+        {
+            return upstream.interfaceDmaAddr(bus_num, dev_addr, addr);
+        }
+
+        AddrRange
+        busConfigRange(PciBusNum start_bus, PciBusNum end_bus) const
+        {
+            return upstream.interfaceBusConfigRange(start_bus, end_bus);
+        }
+
+      protected:
+        PciUpstream &upstream;
     };
 
     /**
@@ -189,6 +292,16 @@ class PciUpstream : public SimObject
     virtual DeviceInterface registerDevice(PciDevice *device,
                                            PciDevAddr dev_addr, PciIntPin pin);
 
+    /**
+     * Register a PCI device with the host.
+     *
+     * @param device Device to register
+     * @param dev_addr The device's position on the PCI bus
+     * @param pin Interrupt pin
+     * @return A device-specific DeviceInterface instance.
+     */
+    virtual BridgeInterface registerBridge();
+
     /** @} */
 
     /**
@@ -196,6 +309,13 @@ class PciUpstream : public SimObject
      * change.
      */
     void sendBusChange();
+
+    /**
+     * Get the range for the configuration memory space for which this PCI
+     * host is responsible. The range should include the full configuration
+     * space even where no bus/device are present.
+     */
+    virtual AddrRange getConfigAddrRange() const = 0;
 
   protected:
     /**
@@ -209,7 +329,8 @@ class PciUpstream : public SimObject
      * @param dev_addr The device's position on the PCI bus
      * @param pin PCI interrupt pin
      */
-    virtual void interfacePostInt(const PciDevAddr &dev_addr,
+    virtual void interfacePostInt(PciBusNum bus_num,
+                                  const PciDevAddr &dev_addr,
                                   PciIntPin pin) = 0;
 
     /**
@@ -218,7 +339,8 @@ class PciUpstream : public SimObject
      * @param dev_addr The device's position on the PCI bus
      * @param pin PCI interrupt pin
      */
-    virtual void interfaceClearInt(const PciDevAddr &dev_addr,
+    virtual void interfaceClearInt(PciBusNum bus_num,
+                                   const PciDevAddr &dev_addr,
                                    PciIntPin pin) = 0;
 
     /**
@@ -230,7 +352,8 @@ class PciUpstream : public SimObject
      *         space.
      */
     virtual AddrRange
-    interfaceConfigRange(const PciDevAddr &dev_addr) const = 0;
+    interfaceConfigRange(PciBusNum bus_num,
+                         const PciDevAddr &dev_addr) const = 0;
 
     /**
      * Calculate the physical address of an IO location on the PCI
@@ -240,7 +363,8 @@ class PciUpstream : public SimObject
      * @param pci_addr Address in the PCI IO address space
      * @return Address in the system's physical address space.
      */
-    virtual Addr interfacePioAddr(const PciDevAddr &dev_addr,
+    virtual Addr interfacePioAddr(PciBusNum bus_num,
+                                  const PciDevAddr &dev_addr,
                                   Addr pci_addr) const = 0;
 
     /**
@@ -251,7 +375,8 @@ class PciUpstream : public SimObject
      * @param pci_addr Address in the PCI memory address space
      * @return Address in the system's physical address space.
      */
-    virtual Addr interfaceMemAddr(const PciDevAddr &dev_addr,
+    virtual Addr interfaceMemAddr(PciBusNum bus_num,
+                                  const PciDevAddr &dev_addr,
                                   Addr pci_addr) const = 0;
 
     /**
@@ -262,8 +387,12 @@ class PciUpstream : public SimObject
      * @param pci_addr Address in the PCI DMA memory address space
      * @return Address in the system's physical address space.
      */
-    virtual Addr interfaceDmaAddr(const PciDevAddr &dev_addr,
+    virtual Addr interfaceDmaAddr(PciBusNum bus_num,
+                                  const PciDevAddr &dev_addr,
                                   Addr pci_addr) const = 0;
+
+    virtual AddrRange interfaceBusConfigRange(PciBusNum start_bus,
+                                              PciBusNum end_bus) const = 0;
 
     /** @} */
 
