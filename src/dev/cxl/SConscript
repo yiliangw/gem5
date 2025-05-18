@@ -1,10 +1,9 @@
 Import('*')
 
-SimObject('CxlMemory.py', sim_objects=['CxlMemory'])
-SimObject('CxlBridge.py', sim_objects=['CxlBridge'])
+SimObject('Cxl.py', sim_objects=['CxlBridge', 'CxlMemory'])
 
 Source('memory.cc')
 Source('bridge.cc')
 
-DebugFlag('CxlMemory', "For CXL Memory")
-DebugFlag('CxlBridge', "For CXL Bridge")
+DebugFlag('CxlMemory', "CXL Memory")
+DebugFlag('CxlBridge', "CXL Bridge")

@@ -49,8 +49,8 @@
 
 #include <deque>
 
-#include "base/types.hh"
 #include "base/statistics.hh"
+#include "base/types.hh"
 #include "mem/port.hh"
 #include "params/CxlBridge.hh"
 #include "sim/clocked_object.hh"
@@ -62,7 +62,6 @@ namespace gem5
 class CxlBridge : public ClockedObject
 {
   protected:
-
     /**
      * A deferred packet stores a packet along with its scheduled
      * transmission time
@@ -71,12 +70,10 @@ class CxlBridge : public ClockedObject
     {
 
       public:
-
         const Tick tick;
         const PacketPtr pkt;
 
-        DeferredPacket(PacketPtr _pkt, Tick _tick) : tick(_tick), pkt(_pkt)
-        { }
+        DeferredPacket(PacketPtr _pkt, Tick _tick) : tick(_tick), pkt(_pkt) {}
     };
 
     // Forward declaration to allow the response port to have a pointer
@@ -92,19 +89,18 @@ class CxlBridge : public ClockedObject
     {
 
       private:
-
         /** The bridge to which this port belongs. */
-        CxlBridge& bridge;
+        CxlBridge &bridge;
 
         /**
          * Request port on the other side of the bridge.
          */
-        BridgeRequestPort& memSidePort;
+        BridgeRequestPort &memSidePort;
 
         /** Minimum request delay though this bridge. */
         const Cycles bridge_lat;
 
-        /** Conversion delay of cxl protocol in bridge*/        
+        /** Conversion delay of cxl protocol in bridge*/
         const Cycles proto_proc_lat;
 
         /** Address ranges to pass through the bridge */
@@ -151,7 +147,6 @@ class CxlBridge : public ClockedObject
         EventFunctionWrapper sendEvent;
 
       public:
-
         /**
          * Constructor for the BridgeResponsePort.
          *
@@ -164,9 +159,10 @@ class CxlBridge : public ClockedObject
          * @param _resp_limit the size of the response queue
          * @param _ranges a number of address ranges to forward
          */
-        BridgeResponsePort(const std::string& _name, CxlBridge& _bridge,
-                        BridgeRequestPort& _memSidePort, Cycles _bridge_lat, Cycles _proto_proc_lat,
-                        int _resp_limit, std::vector<AddrRange> _ranges);
+        BridgeResponsePort(const std::string &_name, CxlBridge &_bridge,
+                           BridgeRequestPort &_memSidePort, Cycles _bridge_lat,
+                           Cycles _proto_proc_lat, int _resp_limit,
+                           std::vector<AddrRange> _ranges);
 
         /**
          * Queue a response packet to be sent out later and also schedule
@@ -187,7 +183,6 @@ class CxlBridge : public ClockedObject
         AddrRange cxl_range;
 
       protected:
-
         /** When receiving a timing request from the peer port,
             pass it to the bridge. */
         bool recvTimingReq(PacketPtr pkt) override;
@@ -202,9 +197,8 @@ class CxlBridge : public ClockedObject
 
         /** When receiving an Atomic backdoor request from the peer port,
             pass it to the bridge. */
-        Tick recvAtomicBackdoor(
-            PacketPtr pkt, MemBackdoorPtr &backdoor) override;
-
+        Tick recvAtomicBackdoor(PacketPtr pkt,
+                                MemBackdoorPtr &backdoor) override;
 
         /** When receiving a Functional request from the peer port,
             pass it to the bridge. */
@@ -212,15 +206,13 @@ class CxlBridge : public ClockedObject
 
         /** When receiving a Functional backdoor request from the peer port,
             pass it to the bridge. */
-        void recvMemBackdoorReq(
-            const MemBackdoorReq &req, MemBackdoorPtr &backdoor) override;
-
+        void recvMemBackdoorReq(const MemBackdoorReq &req,
+                                MemBackdoorPtr &backdoor) override;
 
         /** When receiving a address range request the peer port,
             pass it to the bridge. */
         AddrRangeList getAddrRanges() const override;
     };
-
 
     /**
      * Port on the side that forwards requests and receives
@@ -231,19 +223,18 @@ class CxlBridge : public ClockedObject
     {
 
       private:
-
         /** The bridge to which this port belongs. */
-        CxlBridge& bridge;
+        CxlBridge &bridge;
 
         /**
          * The response port on the other side of the bridge.
          */
-        BridgeResponsePort& cpuSidePort;
+        BridgeResponsePort &cpuSidePort;
 
         /** Minimum delay though this bridge. */
         const Cycles bridge_lat;
 
-        /** Conversion delay of cxl protocol in bridge*/        
+        /** Conversion delay of cxl protocol in bridge*/
         const Cycles proto_proc_lat;
 
         /**
@@ -268,7 +259,6 @@ class CxlBridge : public ClockedObject
         EventFunctionWrapper sendEvent;
 
       public:
-
         /**
          * Constructor for the BridgeRequestPort.
          *
@@ -280,9 +270,9 @@ class CxlBridge : public ClockedObject
          * @param _proto_proc_lat the conversion delay of cxl protocol in bridge
          * @param _req_limit the size of the request queue
          */
-        BridgeRequestPort(const std::string& _name, CxlBridge& _bridge,
-                         BridgeResponsePort& _cpuSidePort, Cycles _bridge_lat,
-                         Cycles _proto_proc_lat, int _req_limit);
+        BridgeRequestPort(const std::string &_name, CxlBridge &_bridge,
+                          BridgeResponsePort &_cpuSidePort, Cycles _bridge_lat,
+                          Cycles _proto_proc_lat, int _req_limit);
 
         /**
          * Is this side blocked from accepting new request packets.
@@ -311,7 +301,6 @@ class CxlBridge : public ClockedObject
         bool trySatisfyFunctional(PacketPtr pkt);
 
       protected:
-
         /** When receiving a timing request from the peer port,
             pass it to the bridge. */
         bool recvTimingResp(PacketPtr pkt) override;
@@ -348,9 +337,8 @@ class CxlBridge : public ClockedObject
     CxlBridgeStats stats;
 
   public:
-
     Port &getPort(const std::string &if_name,
-                  PortID idx=InvalidPortID) override;
+                  PortID idx = InvalidPortID) override;
 
     void init() override;
 

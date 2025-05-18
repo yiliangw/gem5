@@ -48,48 +48,49 @@
 
 #include "base/trace.hh"
 #include "debug/CxlBridge.hh"
-#include "params/CxlBridge.hh"
 #include "debug/CxlMemory.hh"
+#include "mem/packet.hh"
+#include "params/CxlBridge.hh"
 
 namespace gem5
 {
 
-CxlBridge::BridgeResponsePort::BridgeResponsePort(const std::string& _name,
-                                         CxlBridge& _bridge,
-                                         BridgeRequestPort& _memSidePort,
-                                         Cycles _bridge_lat, Cycles _proto_proc_lat,
-                                         int _resp_limit, std::vector<AddrRange> _ranges)
-    : ResponsePort(_name), bridge(_bridge),
-      memSidePort(_memSidePort), bridge_lat(_bridge_lat),
-      proto_proc_lat(_proto_proc_lat),
-      ranges(_ranges.begin(), _ranges.end()),
-      outstandingResponses(0), retryReq(false), respQueueLimit(_resp_limit),
-      sendEvent([this]{ trySendTiming(); }, _name)
+CxlBridge::BridgeResponsePort::BridgeResponsePort(
+    const std::string &_name, CxlBridge &_bridge,
+    BridgeRequestPort &_memSidePort, Cycles _bridge_lat, Cycles _proto_proc_lat,
+    int _resp_limit, std::vector<AddrRange> _ranges)
+    : ResponsePort(_name), bridge(_bridge), memSidePort(_memSidePort),
+      bridge_lat(_bridge_lat), proto_proc_lat(_proto_proc_lat),
+      ranges(_ranges.begin(), _ranges.end()), outstandingResponses(0),
+      retryReq(false), respQueueLimit(_resp_limit),
+      sendEvent([this] { trySendTiming(); }, _name)
 {
-    for (auto i=ranges.begin(); i!=ranges.end(); i++)
+    for (auto i = ranges.begin(); i != ranges.end(); i++)
         DPRINTF(CxlMemory, "BridgeResponsePort.ranges = %s\n", i->to_string());
 
     cxl_range = ranges.back();
-    DPRINTF(CxlMemory, "cxl_mem_start = 0x%lx, cxl_mem_end = 0x%lx\n", cxl_range.start(), cxl_range.end());
+    DPRINTF(CxlMemory, "cxl_mem_start = 0x%lx, cxl_mem_end = 0x%lx\n",
+            cxl_range.start(), cxl_range.end());
 }
 
-CxlBridge::BridgeRequestPort::BridgeRequestPort(const std::string& _name,
-                                           CxlBridge& _bridge,
-                                           BridgeResponsePort& _cpuSidePort,
-                                           Cycles _bridge_lat, Cycles _proto_proc_lat, int _req_limit)
-    : RequestPort(_name), bridge(_bridge),
-      cpuSidePort(_cpuSidePort),
-      bridge_lat(_bridge_lat), proto_proc_lat(_proto_proc_lat), reqQueueLimit(_req_limit),
-      sendEvent([this]{ trySendTiming(); }, _name)
+CxlBridge::BridgeRequestPort::BridgeRequestPort(
+    const std::string &_name, CxlBridge &_bridge,
+    BridgeResponsePort &_cpuSidePort, Cycles _bridge_lat,
+    Cycles _proto_proc_lat, int _req_limit)
+    : RequestPort(_name), bridge(_bridge), cpuSidePort(_cpuSidePort),
+      bridge_lat(_bridge_lat), proto_proc_lat(_proto_proc_lat),
+      reqQueueLimit(_req_limit), sendEvent([this] { trySendTiming(); }, _name)
 {
 }
 
 CxlBridge::CxlBridge(const Params &p)
     : ClockedObject(p),
       cpuSidePort(p.name + ".cpu_side_port", *this, memSidePort,
-                ticksToCycles(p.bridge_lat), ticksToCycles(p.proto_proc_lat), p.resp_fifo_depth, p.ranges),
+                  ticksToCycles(p.bridge_lat), ticksToCycles(p.proto_proc_lat),
+                  p.resp_fifo_depth, p.ranges),
       memSidePort(p.name + ".mem_side_port", *this, cpuSidePort,
-                ticksToCycles(p.bridge_lat), ticksToCycles(p.proto_proc_lat), p.req_fifo_depth),      
+                  ticksToCycles(p.bridge_lat), ticksToCycles(p.proto_proc_lat),
+                  p.req_fifo_depth),
       stats(*this)
 {
 }
@@ -117,21 +118,11 @@ CxlBridge::CxlBridgeStats::CxlBridgeStats(CxlBridge &_bridge)
       ADD_STAT(reqQueueLatDist, "Response queue latency distribution (Tick)"),
       ADD_STAT(rspQueueLatDist, "Response queue latency distribution (Tick)")
 {
-    reqQueueLenDist
-        .init(0, 129, 10)
-        .flags(statistics::nozero);
-    rspQueueLenDist
-        .init(0, 129, 10)
-        .flags(statistics::nozero);
-    rspOutStandDist
-        .init(0, 129, 10)
-        .flags(statistics::nozero);
-    reqQueueLatDist
-        .init(62000, 119999, 1000)
-        .flags(statistics::nozero);
-    rspQueueLatDist
-        .init(62000, 119999, 1000)
-        .flags(statistics::nozero);
+    reqQueueLenDist.init(0, 129, 10).flags(statistics::nozero);
+    rspQueueLenDist.init(0, 129, 10).flags(statistics::nozero);
+    rspOutStandDist.init(0, 129, 10).flags(statistics::nozero);
+    reqQueueLatDist.init(62000, 119999, 1000).flags(statistics::nozero);
+    rspQueueLatDist.init(62000, 119999, 1000).flags(statistics::nozero);
 }
 
 Port &
@@ -184,8 +175,8 @@ CxlBridge::BridgeRequestPort::recvTimingResp(PacketPtr pkt)
 {
     // all checks are done when the request is accepted on the response
     // side, so we are guaranteed to have space for the response
-    DPRINTF(CxlBridge, "recvTimingResp: %s addr 0x%x\n",
-            pkt->cmdString(), pkt->getAddr());
+    DPRINTF(CxlBridge, "recvTimingResp: %s addr 0x%x\n", pkt->cmdString(),
+            pkt->getAddr());
 
     DPRINTF(CxlBridge, "Request queue size: %d\n", transmitList.size());
 
@@ -195,21 +186,20 @@ CxlBridge::BridgeRequestPort::recvTimingResp(PacketPtr pkt)
     Tick receive_delay = pkt->headerDelay + pkt->payloadDelay;
     pkt->headerDelay = pkt->payloadDelay = 0;
     auto total_delay = bridge_lat;
-    if (pkt->getAddr() >= cpuSidePort.cxl_range.start() && pkt->getAddr() < cpuSidePort.cxl_range.end()) {
+    if (pkt->getAddr() >= cpuSidePort.cxl_range.start() &&
+        pkt->getAddr() < cpuSidePort.cxl_range.end()) {
         total_delay = bridge_lat + proto_proc_lat;
-        if (pkt->cxl_cmd == MemCmd::S2MDRS) {
-            assert(pkt->isRead());
+        if (!(pkt->isRead() || pkt->isWrite())) {
+            DPRINTF(CxlMemory,
+                    "the cmd of packet is %s, not a read or write.\n",
+                    pkt->cmd.toString());
         }
-        else if(pkt->cxl_cmd == MemCmd::S2MNDR) {
-            assert(pkt->isWrite());
-        }
-        else
-            DPRINTF(CxlMemory, "the cmd of packet is %s, not a read or write.\n", pkt->cmd.toString());
-        DPRINTF(CxlMemory, "recvTimingResp: %s addr 0x%x, when tick%ld\n", 
-            pkt->cmdString(), pkt->getAddr(), bridge.clockEdge(total_delay) + receive_delay);
+        DPRINTF(CxlMemory, "recvTimingResp (cxl): %s addr 0x%x, when tick%ld\n",
+                pkt->cmdString(), pkt->getAddr(),
+                bridge.clockEdge(total_delay) + receive_delay);
     }
-    cpuSidePort.schedTimingResp(pkt, bridge.clockEdge(total_delay) +
-                              receive_delay);
+    cpuSidePort.schedTimingResp(pkt,
+                                bridge.clockEdge(total_delay) + receive_delay);
 
     return true;
 }
@@ -217,11 +207,11 @@ CxlBridge::BridgeRequestPort::recvTimingResp(PacketPtr pkt)
 bool
 CxlBridge::BridgeResponsePort::recvTimingReq(PacketPtr pkt)
 {
-    DPRINTF(CxlBridge, "recvTimingReq: %s addr 0x%x\n",
-            pkt->cmdString(), pkt->getAddr());
+    DPRINTF(CxlBridge, "recvTimingReq: %s addr 0x%x\n", pkt->cmdString(),
+            pkt->getAddr());
 
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
-             "is responding");
+                                     "is responding");
 
     // we should not get a new request after committing to retry the
     // current one, but unfortunately the CPU violates this rule, so
@@ -263,19 +253,21 @@ CxlBridge::BridgeResponsePort::recvTimingReq(PacketPtr pkt)
             Tick receive_delay = pkt->headerDelay + pkt->payloadDelay;
             pkt->headerDelay = pkt->payloadDelay = 0;
             auto total_delay = bridge_lat;
-            if (pkt->getAddr() >= cxl_range.start() && pkt->getAddr() < cxl_range.end()) {
+            if (pkt->getAddr() >= cxl_range.start() &&
+                pkt->getAddr() < cxl_range.end()) {
                 total_delay = bridge_lat + proto_proc_lat;
-                if (pkt->isRead())
-                    pkt->cxl_cmd = MemCmd::M2SReq;
-                else if(pkt->isWrite())
-                    pkt->cxl_cmd = MemCmd::M2SRwD;
-                else
-                    DPRINTF(CxlMemory, "the cmd of packet is %s, not a read or write.\n", pkt->cmd.toString());
-                DPRINTF(CxlMemory, "recvTimingReq: %s addr 0x%x, when tick%ld\n", 
-                    pkt->cmdString(), pkt->getAddr(), bridge.clockEdge(total_delay) + receive_delay);
+                if (!(pkt->isRead() || pkt->isWrite())) {
+                    DPRINTF(CxlBridge,
+                            "the cmd of packet is %s, not a read or write.\n",
+                            pkt->cmd.toString());
+                }
+                DPRINTF(CxlBridge,
+                        "recvTimingReq (cxl): %s addr 0x%x, when tick%ld\n",
+                        pkt->cmdString(), pkt->getAddr(),
+                        bridge.clockEdge(total_delay) + receive_delay);
             }
             memSidePort.schedTimingReq(pkt, bridge.clockEdge(total_delay) +
-                                      receive_delay);
+                                                receive_delay);
         }
     }
 
@@ -314,7 +306,6 @@ CxlBridge::BridgeRequestPort::schedTimingReq(PacketPtr pkt, Tick when)
 
     bridge.stats.reqQueueLenDist.sample(transmitList.size());
 }
-
 
 void
 CxlBridge::BridgeResponsePort::schedTimingResp(PacketPtr pkt, Tick when)
@@ -359,8 +350,8 @@ CxlBridge::BridgeRequestPort::trySendTiming()
         if (!transmitList.empty()) {
             DeferredPacket next_req = transmitList.front();
             DPRINTF(CxlBridge, "Scheduling next send\n");
-            bridge.schedule(sendEvent, std::max(next_req.tick,
-                                                bridge.clockEdge()));
+            bridge.schedule(sendEvent,
+                            std::max(next_req.tick, bridge.clockEdge()));
         }
 
         // if we have stalled a request due to a full request queue,
@@ -408,8 +399,8 @@ CxlBridge::BridgeResponsePort::trySendTiming()
         if (!transmitList.empty()) {
             DeferredPacket next_resp = transmitList.front();
             DPRINTF(CxlBridge, "Scheduling next send\n");
-            bridge.schedule(sendEvent, std::max(next_resp.tick,
-                                                bridge.clockEdge()));
+            bridge.schedule(sendEvent,
+                            std::max(next_resp.tick, bridge.clockEdge()));
         }
 
         // if there is space in the request queue and we were stalling
@@ -445,31 +436,33 @@ Tick
 CxlBridge::BridgeResponsePort::recvAtomic(PacketPtr pkt)
 {
     panic_if(pkt->cacheResponding(), "Should not see packets where cache "
-             "is responding");
-    if (pkt->getAddr() >= cxl_range.start() && pkt->getAddr() < cxl_range.end()) {
+                                     "is responding");
+    if (pkt->getAddr() >= cxl_range.start() &&
+        pkt->getAddr() < cxl_range.end()) {
         DPRINTF(CxlMemory, "the cmd of pkt is %s, addrRange is %s.\n",
-            pkt->cmd.toString(), pkt->getAddrRange().to_string());
-        if (pkt->isRead())
-            pkt->cxl_cmd = MemCmd::M2SReq;
-        else if(pkt->isWrite())
-            pkt->cxl_cmd = MemCmd::M2SRwD;
-        else
-            DPRINTF(CxlMemory, "the cmd of packet is %s, not a read or write.\n", pkt->cmd.toString());
+                pkt->cmd.toString(), pkt->getAddrRange().to_string());
+
+        if (!(pkt->isRead() || pkt->isWrite())) {
+
+            DPRINTF(CxlMemory,
+                    "the cmd of packet is %s, not a read or write.\n",
+                    pkt->cmd.toString());
+        }
         Tick access_delay = memSidePort.sendAtomic(pkt);
-        Tick total_delay = (bridge_lat + proto_proc_lat) * bridge.clockPeriod() + access_delay;
+        Tick total_delay =
+            (bridge_lat + proto_proc_lat) * bridge.clockPeriod() + access_delay;
         return total_delay;
-    }
-    else {
+    } else {
         return bridge_lat * bridge.clockPeriod() + memSidePort.sendAtomic(pkt);
     }
 }
 
 Tick
-CxlBridge::BridgeResponsePort::recvAtomicBackdoor(
-    PacketPtr pkt, MemBackdoorPtr &backdoor)
+CxlBridge::BridgeResponsePort::recvAtomicBackdoor(PacketPtr pkt,
+                                                  MemBackdoorPtr &backdoor)
 {
-    return bridge_lat * bridge.clockPeriod() + memSidePort.sendAtomicBackdoor(
-        pkt, backdoor);
+    return bridge_lat * bridge.clockPeriod() +
+           memSidePort.sendAtomicBackdoor(pkt, backdoor);
 }
 
 void
@@ -478,7 +471,7 @@ CxlBridge::BridgeResponsePort::recvFunctional(PacketPtr pkt)
     pkt->pushLabel(name());
 
     // check the response queue
-    for (auto i = transmitList.begin();  i != transmitList.end(); ++i) {
+    for (auto i = transmitList.begin(); i != transmitList.end(); ++i) {
         if (pkt->trySatisfyFunctional((*i).pkt)) {
             pkt->makeResponse();
             return;
@@ -497,8 +490,8 @@ CxlBridge::BridgeResponsePort::recvFunctional(PacketPtr pkt)
 }
 
 void
-CxlBridge::BridgeResponsePort::recvMemBackdoorReq(
-    const MemBackdoorReq &req, MemBackdoorPtr &backdoor)
+CxlBridge::BridgeResponsePort::recvMemBackdoorReq(const MemBackdoorReq &req,
+                                                  MemBackdoorPtr &backdoor)
 {
     memSidePort.sendMemBackdoorReq(req, backdoor);
 }

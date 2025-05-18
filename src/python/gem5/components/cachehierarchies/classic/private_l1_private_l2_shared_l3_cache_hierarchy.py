@@ -28,8 +28,15 @@ from m5.objects import (
     BadAddr,
     BaseXBar,
     Cache,
+    Clusivity,
+    BasePrefetcher,
+    MultiPrefetcher,
+    SignaturePathPrefetcher,
+    AMPMPrefetcher,
+    DCPTPrefetcher,
     L2XBar,
-    L3XBar,
+    CoherentXBar,
+    SnoopFilter,
     Port,
     SystemXBar,
 )
@@ -43,8 +50,59 @@ from .abstract_classic_cache_hierarchy import AbstractClassicCacheHierarchy
 from .caches.l1dcache import L1DCache
 from .caches.l1icache import L1ICache
 from .caches.l2cache import L2Cache
-from .caches.l3cache import L3Cache
 from .caches.mmu_cache import MMUCache
+
+from m5.params import *
+
+from typing import Type
+
+
+class L2MultiPrefetcher(MultiPrefetcher):
+    prefetchers = VectorParam.BasePrefetcher([SignaturePathPrefetcher(),
+                                              AMPMPrefetcher(), DCPTPrefetcher()], "Array of prefetchers")
+
+
+class L3XBar(CoherentXBar):
+    width = 64
+    frontend_latency = 1
+    forward_latency = 0
+    response_latency = 1
+    snoop_response_latency = 1
+    snoop_filter = SnoopFilter(lookup_latency=0)
+    point_of_unification = True
+
+
+class L3Cache(Cache):
+    """
+    A simple L3 Cache with default values.
+    """
+
+    def __init__(
+        self,
+        size: str,
+        assoc: int = 16,
+        tag_latency: int = 96,
+        data_latency: int = 96,
+        response_latency: int = 1,
+        mshrs: int = 384,
+        tgts_per_mshr: int = 32,
+        write_buffers: int = 256,
+        writeback_clean: bool = False,
+        clusivity: Clusivity = "mostly_excl",
+        PrefetcherCls: Type[BasePrefetcher] = L2MultiPrefetcher,
+    ):
+        super().__init__()
+        self.size = size
+        self.assoc = assoc
+        self.tag_latency = tag_latency
+        self.data_latency = data_latency
+        self.response_latency = response_latency
+        self.mshrs = mshrs
+        self.tgts_per_mshr = tgts_per_mshr
+        self.write_buffers = write_buffers
+        self.writeback_clean = writeback_clean
+        self.clusivity = clusivity
+        self.prefetcher = PrefetcherCls()
 
 
 class PrivateL1PrivateL2SharedL3CacheHierarchy(

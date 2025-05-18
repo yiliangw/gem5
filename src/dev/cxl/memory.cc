@@ -391,11 +391,7 @@ CxlMemory::CxlResponsePort::recvAtomicBackdoor(PacketPtr pkt,
 Cycles
 CxlMemory::CxlResponsePort::processCXLMem(PacketPtr pkt)
 {
-    if (pkt->cxl_cmd == MemCmd::M2SReq) {
-        assert(pkt->isRead());
-    } else if (pkt->cxl_cmd == MemCmd::M2SRwD) {
-        assert(pkt->isWrite());
-    }
+    assert(pkt->isRead() || pkt->isWrite());
     return protoProcLat + protoProcLat;
 }
 
