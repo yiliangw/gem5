@@ -1,0 +1,5 @@
+Import('*')
+
+SimObject('CxlDevice.py', sim_objects=[
+    'CxlDevice', 'CxlEndpoint', 'CxlBridge'])
+Source('device.cc')
