@@ -3,3 +3,6 @@ Import('*')
 SimObject('CxlDevice.py', sim_objects=[
     'CxlDevice', 'CxlEndpoint', 'CxlBridge'])
 Source('device.cc')
+
+SimObject('CxlRootComplex.py', sim_objects=['CxlRootComplex'])
+Source('root_complex.cc')
