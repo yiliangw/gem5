@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 import argparse
 import sys
+import time
 
 import m5
 from m5.defines import buildEnv
@@ -10,7 +11,7 @@ from m5.objects import *
 from m5.util import addToPath, fatal, warn, convert
 from m5.util.fdthelper import *
 from gem5.isas import ISA
-# from gem5.runtime import get_runtime_isa
+#from gem5.runtime import get_runtime_isa
 from gem5.components.memory.abstract_memory_system import AbstractMemorySystem
 from gem5.components.memory.single_channel import DIMM_DDR5_4400
 
@@ -97,7 +98,7 @@ def fillInCmdline(mdesc, template, **kwargs):
     return template % kwargs
 
 
-def connectX86CxlSystem(x86_sys, numCPUs, cxl_dram: AbstractMemorySystem, cxl_mem_start: Addr):
+def connectX86ClassicSystem(x86_sys, numCPUs):
     # Constants similar to x86_traits.hh
     IO_address_space_base = 0x8000000000000000
     pci_config_address_space_base = 0xC000000000000000
@@ -125,32 +126,32 @@ def connectX86CxlSystem(x86_sys, numCPUs, cxl_dram: AbstractMemorySystem, cxl_me
     ]
 
     # Configure CXL Device
-    x86_sys.cxl_dram = cxl_dram
-    x86_sys.cxl_mem_start = cxl_mem_start
-    cxl_mem_range = AddrRange(cxl_mem_start, size=cxl_dram.get_size())
-    cxl_dram.set_memory_range([cxl_mem_range])
+    if hasattr(x86_sys, 'cxl_dram'):
+        cxl_mem_start = Addr('128GB')
+        cxl_mem_range = AddrRange(cxl_mem_start, size=x86_sys.cxl_dram.get_size())
+        x86_sys.cxl_dram.set_memory_range([cxl_mem_range])
 
-    x86_sys.bridge.ranges.append(cxl_mem_range)
+        x86_sys.bridge.ranges.append(cxl_mem_range)
 
-    x86_sys.cxl_memory = CxlMemory(
-        pci_func=0, pci_dev=5, pci_bus=0, host=x86_sys.pc.pci_host)
-    x86_sys.cxl_memory.cxl_mem_range = cxl_mem_range
-    x86_sys.cxl_memory.BAR0.size = f'{cxl_dram.get_size()}B'
-    x86_sys.cxl_memory.proto_proc_lat = Latency("15ns")
-    x86_sys.cxl_memory.rsp_size = 48
-    x86_sys.cxl_memory.req_size = 48
+        x86_sys.cxl_memory = CxlMemory(
+            pci_func=0, pci_dev=5, pci_bus=0, host=x86_sys.pc.pci_host)
+        x86_sys.cxl_memory.cxl_mem_range = cxl_mem_range
+        x86_sys.cxl_memory.BAR0.size = f'{x86_sys.cxl_dram.get_size()}B'
+        x86_sys.cxl_memory.proto_proc_lat = Latency("15ns")
+        x86_sys.cxl_memory.rsp_size = 48
+        x86_sys.cxl_memory.req_size = 48
 
-    x86_sys.cxl_memory.cxl_rsp_port = x86_sys.iobus.mem_side_ports
-    x86_sys.cxl_memory.dma = x86_sys.iobus.cpu_side_ports
+        x86_sys.cxl_memory.cxl_rsp_port = x86_sys.iobus.mem_side_ports
+        x86_sys.cxl_memory.dma = x86_sys.iobus.cpu_side_ports
 
-    # cxl_abstract_mems = []
-    # for mc in cxl_dram.get_memory_controllers():
-    #     cxl_abstract_mems.append(mc.dram)
-    # self.memories.extend(cxl_abstract_mems)
-    x86_sys.cxl_mem_bus = CxlMemBar()
-    x86_sys.cxl_mem_bus.cpu_side_ports = x86_sys.cxl_memory.mem_req_port
-    for _, port in cxl_dram.get_mem_ports():
-        x86_sys.cxl_mem_bus.mem_side_ports = port
+        # cxl_abstract_mems = []
+        # for mc in cxl_dram.get_memory_controllers():
+        #     cxl_abstract_mems.append(mc.dram)
+        # self.memories.extend(cxl_abstract_mems)
+        x86_sys.cxl_mem_bus = CxlMemBar()
+        x86_sys.cxl_mem_bus.cpu_side_ports = x86_sys.cxl_memory.mem_req_port
+        for _, port in x86_sys.cxl_dram.get_mem_ports():
+            x86_sys.cxl_mem_bus.mem_side_ports = port
 
     # Create a bridge from the IO bus to the memory bus to allow access to
     # the local APIC (two pages)
@@ -170,7 +171,7 @@ def connectX86CxlSystem(x86_sys, numCPUs, cxl_dram: AbstractMemorySystem, cxl_me
     x86_sys.system_port = x86_sys.membus.cpu_side_ports
 
 
-def makeX86System(mem_mode, numCPUs=1, mdesc=None, cxl_mem_sz='8GB', workload=None, Ruby=False):
+def makeX86System(mem_mode, numCPUs=1, mdesc=None, workload=None, Ruby=False):
     self = System()
 
     self.m5ops_base = 0xFFFF0000
@@ -297,12 +298,14 @@ def makeX86System(mem_mode, numCPUs=1, mdesc=None, cxl_mem_sz='8GB', workload=No
 
     self.pc.com_1.device = Terminal(port=args.termport, outfile="stdoutput")
 
+    if args.cxl_mem_sz > 0:
+        self.cxl_dram = DIMM_DDR5_4400(size=f'{args.cxl_mem_sz}MB')
+
     # Create and connect the busses required by each memory system
-    cxl_dram = DIMM_DDR5_4400(cxl_mem_sz)
-    align = convert.toMemorySize('4GB')
-    cxl_mem_start = (convert.toMemorySize('3GB') +
-                     excess_mem_size + align - 1) // align * align
-    connectX86CxlSystem(self, numCPUs, cxl_dram, cxl_mem_start)
+    connectX86ClassicSystem(self, numCPUs)
+
+    # Timer
+    self.pc.south_bridge.cmos.time = int(time.time())
 
     # Disks
     disks = makeCowDisks(mdesc.disks())
@@ -384,11 +387,10 @@ def makeX86System(mem_mode, numCPUs=1, mdesc=None, cxl_mem_sz='8GB', workload=No
 
 
 def makeLinuxX86System(
-    mem_mode, numCPUs=1, mdesc=None, cxl_mem_sz='8G', Ruby=False, cmdline=None
+    mem_mode, numCPUs=1, mdesc=None, Ruby=False, cmdline=None
 ):
     # Build up the x86 system and then specialize it for Linux
-    self = makeX86System(mem_mode, numCPUs, mdesc,
-                         cxl_mem_sz, X86FsLinux(), Ruby)
+    self = makeX86System(mem_mode, numCPUs, mdesc, X86FsLinux(), Ruby)
 
     # We assume below that there's at least 1MB of memory. We'll require 2
     # just to avoid corner cases.
@@ -436,13 +438,14 @@ def makeLinuxX86System(
             )
         )
 
-    entries.append(
-        X86E820Entry(
-            addr=self.cxl_mem_start,
-            size="%dB" % (self.cxl_dram.get_size()),
-            range_type=1,
+    if hasattr(self, 'cxl_dram'):
+        entries.append(
+            X86E820Entry(
+                addr=Addr('128GB'),
+                size="%dB" % (self.cxl_dram.get_size()),
+                range_type=1,
+            )
         )
-    )
 
     self.workload.e820_table.entries = entries
 
@@ -468,6 +471,7 @@ def cmd_line_template():
         return open(args.command_line_file).read().strip()
     return None
 
+
 def param_cpus(cpus):
     for cpu in cpus:
         cpu.mmu.dtb.size = 1024
@@ -478,7 +482,7 @@ def build_system(np):
     cmdline = cmd_line_template()
 
     sys = makeLinuxX86System(
-        test_mem_mode, np, bm[0], args.cxl_mem_sz, args.ruby, cmdline=cmdline
+        test_mem_mode, np, bm[0], args.ruby, cmdline=cmdline
     )
 
     # Set the cache line size for the entire system
@@ -599,7 +603,7 @@ def build_system(np):
     MemConfig.config_mem(args, sys)
 
     if ObjectList.is_kvm_cpu(TestCPUClass
-                            ) or ObjectList.is_kvm_cpu(FutureClass):
+                             ) or ObjectList.is_kvm_cpu(FutureClass):
         for i, cpu in enumerate(sys.cpu):
             # Disable relying on performance counters for kvm cpu
             cpu.usePerf = True
@@ -659,15 +663,13 @@ parser.add_argument(
 )
 parser.add_argument(
     "--cxl-mem-sz",
-    action="store",
-    type=str,
-    default="4GB",
-    help="The size of CXL attached memory"
+    type=int,
+    default=0,
+    help="CXL memory size (MB)"
 )
 
 
 args = parser.parse_args()
-
 
 # system under test can be any CPU
 (TestCPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(args)
