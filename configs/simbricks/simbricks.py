@@ -566,7 +566,7 @@ def build_system(np):
             # that and use the same event queue for all devices.
             for obj in cpu.descendants():
                 obj.eventq_index = 0
-            cpu.eventq_index = i + 1
+            cpu.eventq_index = 0
         # Make all SimBricks devices still live in the main event queue
         sys.kvm_vm = KvmVM()
 
@@ -637,7 +637,7 @@ root = Root(full_system=True, system=sys)
 # Required for running kvm on multiple host cores. Uses gem5's parallel event
 # queue feature.
 if ObjectList.is_kvm_cpu(TestCPUClass) or ObjectList.is_kvm_cpu(FutureClass):
-    root.sim_quantum = int(2e6)  # 2 us
+    root.sim_quantum = int(1e8)  # 100 us
 
 if args.timesync:
     root.time_sync_enable = True
